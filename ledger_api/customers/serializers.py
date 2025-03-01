@@ -16,11 +16,10 @@ class UserSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ['email', 'username', 'full_name', 'password', 'business_name']
+        fields = ['email', 'username', 'password', 'first_name', 'middle_name', 'last_name', 'phone1', 'phone2', 'photo', 'address', 'city', 'country', 'date_of_birth', 'nationality', 'position', 'business_name']
     
     password = serializers.CharField(write_only=True)
 
     def create(self, validated_data):
         business_name = validated_data.pop('business_name')  # Extract business name
         return User.objects.create_user(business_name=business_name, **validated_data)
-
