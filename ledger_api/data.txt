@@ -1,0 +1,40 @@
+[
+    
+{
+    "name": "Junction Business Center"
+},
+
+{
+    "username": "edkainah",
+    "password": "esk@1998"
+}
+,
+{
+    "username": "ed",
+    "password": "esk@1998"
+}
+,
+{
+    "username": "eskainah",
+    "email": "eskainah@gmail.com",
+    "first_name": "Edwin",
+    "middle_name": "",
+    "last_name": "Kain",
+    "phone1": "+234567894",
+    "phone2": "",
+    "address": "Scheiffelin Town, Margibi County 105",
+    "date_of_birth": "2024-09-11",
+    "nationality": "Liberian",
+    "position": "Owner",
+    "parent_owner": "",
+    "password": "esk@1998"
+}
+]
+
+ 
+
+from customers.models import Client, Domain
+tenant = Client(schema_name="public", business_name="Public")
+tenant.save()
+domain = Domain(domain="localhost", tenant=tenant, is_primary=True)
+domain.save()

@@ -30,6 +30,7 @@ class UserViewSet(viewsets.ModelViewSet):
                 'user': UserSerializer(user).data
             }, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
 def index(request):
     return(HttpResponse("<h1>Public</h1>"))
 
