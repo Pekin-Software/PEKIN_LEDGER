@@ -43,7 +43,10 @@ SHARED_APPS = [
     'rest_framework_simplejwt',
 ]
 TENANT_APPS = [
-    "client_app"
+    "client_app", 
+    "records",
+    "warehouses",
+    "stores",
 ]
 
 INSTALLED_APPS = SHARED_APPS + [app for app in TENANT_APPS if app not in SHARED_APPS]
