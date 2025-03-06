@@ -13,22 +13,29 @@
     "username": "ed",
     "password": "esk@1998"
 }
+{
+    "username": "subaccountuser",
+    "password": "1234"
+}
 ,
 {
-    "username": "eskainah",
-    "email": "eskainah@gmail.com",
-    "first_name": "Edwin",
-    "middle_name": "",
-    "last_name": "Kain",
-    "phone1": "+234567894",
-    "phone2": "",
-    "address": "Scheiffelin Town, Margibi County 105",
-    "date_of_birth": "2024-09-11",
-    "nationality": "Liberian",
-    "position": "Owner",
-    "parent_owner": "",
-    "password": "esk@1998"
+  "email": "subaccount@example.com",
+  "username": "subaccountuser",
+  "first_name": "John",
+  "middle_name": "Doe",
+  "last_name": "Smith",
+  "phone1": "+1234567890",
+  "phone2": "+0987654321",
+  "photo": null,
+  "address": "1234 Subaccount St, Tenant City",
+  "city": "Tenant City",
+  "country": "CountryName",
+  "date_of_birth": "1990-01-01",
+  "nationality": "CountryName",
+  "position": "Manager",
+  "password": "1234"
 }
+
 ]
 
  
@@ -38,3 +45,8 @@ tenant = Client(schema_name="public", business_name="Public")
 tenant.save()
 domain = Domain(domain="localhost", tenant=tenant, is_primary=True)
 domain.save()
+
+
+{
+  "store_name": "Branch2"
+}
