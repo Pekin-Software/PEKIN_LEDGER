@@ -6,7 +6,8 @@ from django_tenants.models import TenantMixin, DomainMixin
 from django.utils.translation import gettext_lazy as _
 from django_tenants.utils import schema_context
 
-# Helper Functions for Validation
+
+#Functions for Validation
 def validate_name(value):
     if not re.match(r'^[a-zA-Z-]+$', value):
         raise ValidationError(_('Names can only contain letters and hyphens (-)'))
@@ -22,6 +23,10 @@ class Client(TenantMixin):
     schema_name = models.CharField(max_length=50, unique=True) 
     created_on = models.DateField(auto_now_add=True)
     
+    def get_domain(self):
+        # Get the domain associated with this tenant (Client)
+        domain = Domain.objects.filter(tenant=self).first()
+        return domain.domain if domain else None
 class Domain(DomainMixin):
    pass
 
@@ -34,12 +39,11 @@ class CustomUserManager(BaseUserManager):
         email = self.normalize_email(email)
         user = self.model(email=email, username=username, **extra_fields)
 
-        # Ensure password is hashed
         if password:
             user.set_password(password)  # This will hash the password properly
 
+        # Generate a valid schema_name
         if business_name:
-            # Generate a valid schema_name
             schema_name = re.sub(r'[^a-z0-9_]', '', business_name.lower().replace(" ", ""))
             if not schema_name or schema_name[0].isdigit():
                 raise ValueError(_('Invalid schema name generated from business_name'))
@@ -57,7 +61,7 @@ class CustomUserManager(BaseUserManager):
             # Fetch the base domain from the public schema
             public_domain = Domain.objects.filter(tenant__schema_name="public").first()
             if public_domain:
-                base_domain = ".".join(public_domain.domain.split(".")[-2:])  # Extract "yourdomain.com"
+                base_domain = ".".join(public_domain.domain.split(".")[-2:])  # Extr"
             else:
                 raise ValueError(_("Public schema domain not found. Please ensure it exists."))
 
@@ -77,7 +81,7 @@ class CustomUserManager(BaseUserManager):
             # Activate schema and create tables
             with schema_context(client.schema_name):
                 user.save(using=self._db)
-
+                
         return user
 
 class User(AbstractBaseUser):
