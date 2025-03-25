@@ -24,13 +24,16 @@
   "first_name": "John",
   "middle_name": "Doe",
   "last_name": "Smith",
+
   "phone1": "+1234567890",
   "phone2": "+0987654321",
   "photo": null,
+  
   "address": "1234 Subaccount St, Tenant City",
   "city": "Tenant City",
   "country": "CountryName",
   "date_of_birth": "1990-01-01",
+  
   "nationality": "CountryName",
   "position": "Manager",
   "password": "1234"
@@ -50,3 +53,26 @@ domain.save()
 {
   "store_name": "Branch2"
 }
+
+
+requirement.txt
+npm install @fontsource/roboto
+npm install country-list
+npm install libphonenumber-js
+npm install world-countries libphonenumber-js
+npm install react-datepicker
+npm install react-router-dom
+npm install lucide-react
+npm install js-cookie
+pip install django-extensions
+ pip install Werkzeug
+ pip install pyOpenSSL
+pip install django
+pip install django_tenants
+pip install djangorestframework
+pip install djangorestframework-simplejwt
+pip install django-cors-headers
+pip install psycopg2
+pip install Pillow
+
+
