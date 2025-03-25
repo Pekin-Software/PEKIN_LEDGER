@@ -1,0 +1,110 @@
+/* Basic Reset */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: Arial, sans-serif;
+  }
+  
+  /* Main container */
+  .landing-container {
+    width: 100%;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    color: #333;
+  }
+  
+  /* Header */
+  .landing-header {
+    width: 100%;
+    padding: 15px 20px;
+    background-color: white;
+    box-shadow: 0px 2px 5px rgba(0, 0, 0, 0.1);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  
+  .landing-logo {
+    font-size: 24px;
+    font-weight: bold;
+  }
+  
+  .landing-nav {
+    display: flex;
+    gap: 10px;
+  }
+  
+  .landing-nav button {
+    padding: 8px 15px;
+    font-size: 14px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background 0.3s ease;
+  }
+  
+  .login-btn {
+    background-color: transparent;
+    color: #007bff;
+    border: 1px solid #007bff;
+  }
+  
+  .login-btn:hover {
+    background-color: #007bff;
+    color: white;
+  }
+  
+  .signup-btn {
+    background-color: #007bff;
+    color: white;
+  }
+  
+  .signup-btn:hover {
+    background-color: #0056b3;
+  }
+  
+  /* Main Content */
+  .landing-content {
+    text-align: center;
+    margin-top: 20px;
+  }
+  
+  .landing-content h2 {
+    font-size: 28px;
+    margin-bottom: 10px;
+  }
+  
+  .landing-content p {
+    font-size: 16px;
+    color: #555;
+    max-width: 400px;
+    margin: 0 auto;
+  }
+  
+  /* Get Started Button */
+  .landing-button {
+    margin-top: 20px;
+    padding: 10px 20px;
+    font-size: 16px;
+    background-color: #007bff;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background 0.3s ease;
+  }
+  
+  .landing-button:hover {
+    background-color: #0056b3;
+  }
+  
+  /* Footer */
+  .landing-footer {
+    margin-top: 20px;
+    font-size: 14px;
+    color: #666;
+  }
+  
