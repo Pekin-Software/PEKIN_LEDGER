@@ -1,0 +1,195 @@
+.auth-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 1000;
+  display: flex;
+  flex-direction: row;
+  height: 100%;
+  
+}
+.logo-container {
+  flex-basis: 50%;
+  height: 100;
+  display: flex;
+  flex-direction: column;
+    /* padding: 20px; */
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  color: #333;
+  font-size: 1rem;
+  cursor: pointer;
+  margin: 10px 0 0 10px;
+  width: 30px;
+  img{
+    width: 70%;
+  }
+}
+.logo{
+  display: flex;
+  justify-content: center;
+  align-items: center;  
+  height: 100%;
+  font-size: 24px;
+  font-weight: bold;
+  color: #333;
+}
+  .form-container {
+    flex-basis: 50%;
+    height: 100%;
+    background-color: #ffffff;
+    display: flex;
+
+  }
+  
+  .auth-form {
+    width: 50%;
+    margin: auto;
+    display: flex;
+    flex-direction: column;
+    color: #282424;
+  }
+
+  
+  .form-title {
+    font-size: 18px;
+    margin-bottom: 0px;
+    color: #2B2F38;
+    text-align: center;
+  
+    
+  }
+  label{
+    font-size: 12px;
+    color: #2B2F38;
+
+  }
+  .welcome-txt{
+    color: #776c6c;
+    margin-top: 0;
+    font-size: 12px;
+    text-align: center;
+  }
+
+  .auth-input {
+    padding: 8px;
+    margin-bottom: 10px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    background-color: transparent;
+    color: #776c6c;
+  }
+
+  
+  .forget-pwd{
+    color: #007bff;
+    font-size: 12px;
+    text-align: right;
+    margin-bottom: 10px;
+  }
+
+  .auth-input[type="date"]{
+    width: 90%;
+  }
+  .auth-input[type="date"]::-webkit-calendar-picker-indicator{
+    background-color: #ccc;
+    border-radius: 5px;
+    cursor: pointer; 
+  }
+
+  .auth-input[type="date"]::-moz-calendar-picker-indicator{
+    background-color: #ccc;
+    border-radius: 5px;
+    cursor: pointer; 
+  }
+  
+  .submit-button {
+    padding: 10px;
+    border: none;
+    border-radius: 5px;
+    background-color: #1366D9;
+    color: white;
+    cursor: pointer;
+  }
+  .signup-txt{
+    color: #776c6c;
+    margin-top: 6px;
+    font-size: 12px;
+    text-align: center;
+    button{
+      color: #007bff;
+      background-color: transparent;
+      border: none;
+    }
+  }
+  .submit-button:hover {
+    background-color: #0056b3;
+  } 
+  
+  .sign-up-form {
+    width: 80%;
+    margin: auto;
+    display: flex;
+    flex-direction: column;
+    color: #282424;
+       
+  }
+  .row-input{
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: space-between;
+    div{
+      display: flex;
+      flex-direction: column;
+      width: 31.9%;
+    }
+    .auth-input {
+      width: 90%;
+    }
+  }
+
+  .countries{
+      width: 100%;
+      padding: 8px;
+      margin-bottom: 10px;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+      background-color: transparent;
+      color: #776c6c;
+     
+  }
+ 
+  .mobile-input{
+    width: 100%;
+    display: flex;
+    gap: 2px;
+    flex-wrap: wrap;
+      
+    }
+
+  .input-list{
+    padding: 8px;
+    margin-bottom: 10px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    background-color: transparent;
+    color: #776c6c;
+    margin-right: 0;
+    width: 39%;
+    
+  }
+  .phone-num{
+   width: 49%;
+   padding: 8px;
+   margin-bottom: 10px;
+   border: 1px solid #ccc;
+   border-radius: 5px;
+   background-color: transparent;
+   color: #776c6c;
+  }
