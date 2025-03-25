@@ -1,0 +1,249 @@
+.inventory-container {
+    padding: 15px;
+    font-family: Arial, sans-serif;
+  }
+  
+  .overview {
+    /* margin-bottom: ; */
+    background-color: #ffffff;
+    padding: 10px;
+    h2{
+      color: #383E49;
+      font-size: 12px;
+      padding-bottom: 5px;
+    }
+  }
+  
+  .card-container {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .inventory-card:last-child{
+    border-right: none;
+  }
+  
+  .inventory-card {
+    padding: 5px;
+    border-right: 2px solid #373d4733;
+    width: 132px;
+  }
+  
+  .inventory-card h3 {
+    margin: 0;
+    font-size: 11px;
+  }
+  
+  .value {
+    font-size: 12px;
+    font-weight: bold;
+  }
+  
+  .detail {
+    font-size: 10px;
+    color: gray;
+  }
+  
+  .products {
+    margin-top: 15px;
+    background-color: #fff;
+  }
+  .products-header{
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 10px 0 10px;
+    h2{
+      color: #383E49;
+      font-size: 12px;
+    }
+  }
+  .actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  
+  .add-product,
+  .download, .filter-button{
+    background: #1366D9;
+    color: white;
+    padding: 8px 12px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 11px;
+  }
+  .download, .filter-button{
+    background-color: transparent;
+    color: #5D6679;
+    border: 1px solid #abaeb4; 
+  }
+
+  .download:hover, .filter-button:hover {
+    background-color: #1366D9;
+    color: #fff;
+    border-color: #1366D9;
+  }
+  
+  /* Filter Button */
+.filter-container {
+  position: relative;
+  display: inline-block;
+}
+
+.filter-button {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 8px 16px;
+  transition: background 0.3s ease;
+}
+
+.filter-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+
+
+/* Filter Options Dropdown */
+.filter-options {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  background: white;
+  list-style: none;
+  margin: 0 0;
+  width: 175px;
+  border: 1px solid #ddd;
+  border-radius: 5px;
+  box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.1);
+  z-index: 10;
+}
+
+.filter-options li {
+  padding: 5px 12px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.3s ease;
+}
+
+.filter-options li:hover {
+  background: #f1f1f1;
+}
+
+  
+  .product-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+    gap: 10px;
+    margin-top: 10px;
+  }
+  
+  .product-card {
+    background: #fff;
+    padding: 10px;
+    border-radius: 8px;
+    box-shadow: 2px 2px 10px rgba(0, 0, 0, 0.1);
+    position: relative;
+    text-align: center;
+    h3{
+      font-size: 12px;
+
+    }
+    p{
+      font-size: 10px;
+    }
+  }
+  
+  /* Default product image using CSS */
+.product-image-container {
+    width: 100%; /* Adjust size as needed */
+    height: 50px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: #f3f3f3; 
+    border-radius: 10px;
+    position: relative;
+    overflow: hidden;
+  }
+  
+  .product-image-container::before {
+    content: "🛍️"; /* Shopping bag emoji */
+    font-size: 50px;
+    color: #a0a0a0; /* Grayscale effect */
+    filter: grayscale(100%);
+    position: absolute;
+  }
+  
+  /* Ensure image appears if available */
+  .product-image {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+  
+  .product-image:not([src]) {
+    visibility: hidden; /* Hide broken image icon */
+  }
+  
+  /* Availability Badge on Top */
+  .availability {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: rgba(0, 128, 0, 0.8); /* Green for in-stock */
+    color: white;
+    padding: 2px 5px;
+    border-radius: 5px;
+    font-size: 9px;
+    font-weight: bold;
+  }
+  
+  /* Out of Stock Style */
+  .availability.out-stock {
+    background: rgba(200, 0, 0, 0.8); /* Red for out-of-stock */
+  }
+  
+  .update-product {
+    background: #ffa500;
+    color: white;
+    padding: 4px 8px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    margin-top: 5px;
+  }
+/* Custom Scrollbar */
+.product-grid.scrollable {
+    max-height: 60vh; /* Adjust height as needed */
+    overflow-y: auto;
+    scrollbar-width: thin; /* For Firefox */
+    scrollbar-color: #ccc transparent; /* Thumb color, track transparent */
+  }
+  
+  /* WebKit Browsers (Chrome, Safari, Edge) */
+  .product-grid.scrollable::-webkit-scrollbar {
+    width: 8px; /* Adjust thickness */
+  }
+  
+  .product-grid.scrollable::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.3); /* Subtle dark thumb */
+    border-radius: 10px;
+    transition: background 0.3s ease-in-out;
+  }
+  
+  .product-grid.scrollable::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 0, 0, 0.5); /* Darker on hover */
+  }
+  
+  .product-grid.scrollable::-webkit-scrollbar-track {
+    background: transparent; /* No track background */
+  }
+  
+  
+  
