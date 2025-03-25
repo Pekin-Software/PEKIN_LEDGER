@@ -1,0 +1,82 @@
+.store-container {
+    padding: 20px;
+    max-width: 100%;
+    margin: 15px 15px;
+    background-color: #FFFFFF;
+  }
+  
+.store-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    h2{
+        color: #383E49;
+        font-size: 16px;
+    }
+}
+  
+.add-store {
+    background-color: #1366D9;
+    color: white;
+    border: none;
+    padding: 8px 15px;
+    border-radius: 5px;
+    cursor: pointer;
+}
+  
+.store-list {
+    max-height: 70vh;
+    overflow-y: auto;
+    padding-right: 90px;
+}
+
+.store-list.scrollable::-webkit-scrollbar {
+    width: 8px; 
+  }
+  
+.store-card {
+    background: white;
+    border-radius: 8px;
+    /* padding: 15px; */
+    margin-bottom: 10px;
+    /* box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); */
+    position: relative;
+    display: flex;
+    border: 1px solid #F0F1F3;
+}
+  
+.store-name {
+    flex-basis: 200px;
+    font-size: 12px;
+    font-weight: bold;
+    color: #333;
+    background-color: #F0F1F3;
+    border-top-left-radius: 8px;
+    border-bottom-left-radius: 8px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+.store-details{
+    padding: 15px;
+    font-size: 12px;
+}
+.store-details :nth-child(4){
+    margin-top: 5px;
+}
+  
+.edit-button {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background-color: transparent;
+    color: #1366D9;
+    font-size: 11px;
+    font-weight: 600;
+    border: 1px solid #babec7;
+    padding: 5px 20px;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
