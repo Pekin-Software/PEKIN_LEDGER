@@ -3,12 +3,12 @@ from rest_framework.routers import DefaultRouter
 from .views import WarehouseViewSet, SectionViewSet, InventoryViewSet, TransferViewSet, StockRequestViewSet, GeneralWarehouseInventoryViewSet
 
 router = DefaultRouter()
-router.register(r'warehouses', WarehouseViewSet)
-router.register(r'sections', SectionViewSet)
-router.register(r'inventories', InventoryViewSet)
-router.register(r'transfers', TransferViewSet)
-router.register(r'stockrequests', StockRequestViewSet)
-router.register(r'general-warehouse-inventory', GeneralWarehouseInventoryViewSet)
+router.register(r'warehouses', WarehouseViewSet, basename='warehouse' )
+router.register(r'sections', SectionViewSet, basename='sections')
+router.register(r'inventories', InventoryViewSet, basename='inventory')
+router.register(r'transfers', TransferViewSet, basename='transefer')
+router.register(r'stockrequests', StockRequestViewSet, basename='stockrequests')
+router.register(r'general-warehouse-inventory', GeneralWarehouseInventoryViewSet, basename='general_warehouse')
 
 urlpatterns = [
     path('api/', include(router.urls)),
@@ -37,7 +37,7 @@ urlpatterns = [
 
 # Inventory URLs:
 
-# POST /api/inventories/add-product/ - Add product to inventory
+# POST /api/inventories/add_stock/ Add product to inventory
 
 # GET /api/inventories/list/ - List inventory items
 
@@ -47,7 +47,7 @@ urlpatterns = [
 
 # Transfer URLs:
 
-# POST /api/transfers/create/ - Create a transfer
+# Transfer is created when stock request is confirm
 
 # GET /api/transfers/list/ - List transfers
 

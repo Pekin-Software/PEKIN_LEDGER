@@ -70,12 +70,8 @@ class StoreCreateView(generics.CreateAPIView):
                 
         except Client.DoesNotExist:
             return Response({"error": "Tenant not found"}, status=400)
-
-
-
 class StoreEmployeeViewSet(viewsets.ViewSet):
     
-   
     @action(detail=True, methods=['post'])
     def add_staff(self, request, pk=None):
         """Assign or reassign one or more users to a store."""

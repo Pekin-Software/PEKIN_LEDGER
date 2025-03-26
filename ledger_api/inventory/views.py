@@ -130,7 +130,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.routers import DefaultRouter
 from .models import Warehouse, Section, Inventory, Transfer, StockRequest, Lot, Product, Store
-from .serializers import WarehouseSerializer, SectionSerializer, InventorySerializer, TransferSerializer, StockRequestSerializer, LotSerializer
+from .serializers import WarehouseSerializer, SectionSerializer, InventorySerializer, TransferSerializer, StockRequestSerializer
 from django.db.models import Q 
 
 # Warehouse Viewset
@@ -207,7 +207,7 @@ class InventoryViewSet(viewsets.ViewSet):
         serializer = InventorySerializer(inventory, many=True)
         return Response(serializer.data)
 
-    @action(detail=False, methods=['post'], url_path='add-stock')
+    @action(detail=False, methods=['post'], url_path='add_stock')
     def add_stock(self, request):
         # Extracting data from the request
         product_id = request.data.get("product")

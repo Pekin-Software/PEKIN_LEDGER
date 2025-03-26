@@ -22,4 +22,5 @@ urlpatterns = [
     # path('', include("warehouses.urls")),
     # path('stores', include("stores.urls")),
     path('', include("stores.urls")),
+    path('', include("inventory.urls")),
 ]
