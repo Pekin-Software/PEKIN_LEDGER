@@ -14,7 +14,7 @@
   .modal-content {
     background: white;
     padding: 20px;
-    width: 350px;
+    width: 80%;
     border-radius: 5px;
     box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
     position: relative;
@@ -53,23 +53,21 @@
   
   form {
     display: flex;
-    flex-direction: column;
-    div{
-        display: flex;
-        align-items: center;
-        gap: 5px;
-    }
-    label{
-        width: 130px;
-    }
+    flex-direction: row;
   }
-  
+  form  label{
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    /* width: 350px; */
+  }
+
   form input {
     padding: 6px;
     margin: 4px 0;
     border: 1px solid #ccc;
     border-radius: 5px;
-    width: 100%;
+    /* width: 100%; */
     font-size: 12px;
     background-color: transparent;
     color: #303030;

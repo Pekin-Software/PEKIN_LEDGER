@@ -64,9 +64,12 @@ npm install react-datepicker
 npm install react-router-dom
 npm install lucide-react
 npm install js-cookie
+npm install react-qr-barcode-scanner
+
+
 pip install django-extensions
- pip install Werkzeug
- pip install pyOpenSSL
+pip install Werkzeug
+pip install pyOpenSSL
 pip install django
 pip install django_tenants
 pip install djangorestframework
