@@ -12,7 +12,7 @@ class Product(models.Model):
     description = models.TextField()
     threshold_value = models.PositiveIntegerField(default=0)
     product_image = models.ImageField(upload_to='product_images/', null=True, blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
+    created_at = models.DateTimeField(default=timezone.now)
     updated_at = models.DateTimeField(auto_now=True)
     
     def __str__(self):
@@ -73,7 +73,7 @@ class Lot(models.Model):
 
     # Timestamps
     purchase_date = models.DateTimeField(auto_now_add=True)  # Date of purchase
-    created_at = models.DateTimeField(auto_now_add=True)
+    created_at = models.DateTimeField(default=timezone.now)
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
