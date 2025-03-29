@@ -1,17 +1,15 @@
 from django.db import models
 from django.utils.text import slugify
 from customers.models import Client
-
+from django.utils import timezone 
+import uuid
 class Product(models.Model):
     tenant = models.ForeignKey(Client, on_delete=models.CASCADE, related_name="products")
-    sku = models.CharField(max_length=20, unique=True, blank=True)
     product_name = models.CharField(max_length=255)
+    slug = models.SlugField(unique=True, blank=True, max_length=300)
     category = models.ForeignKey('Category', on_delete=models.CASCADE, related_name='products')
     unit = models.CharField(max_length=50)
-    quantity = models.PositiveIntegerField(default=0)
     description = models.TextField()
-    price = models.DecimalField(max_digits=10, decimal_places=2)
-    expired_date = models.DateField(null=True, blank=True)
     threshold_value = models.PositiveIntegerField(default=0)
     product_image = models.ImageField(upload_to='product_images/', null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -22,23 +20,21 @@ class Product(models.Model):
     
     @property
     def stock_status(self):
-        return "In Stock" if self.quantity > 0 else "Out of Stock"
+        active_lots = self.lots.filter(expired_date__gte=timezone.now())  # Ignore expired lots
+        total_stock = sum(lot.quantity for lot in active_lots)
+        return "In Stock" if total_stock > 0 else "Out of Stock"
 
-    def generate_sku(self):
-        category_code = self.category.name[:3].upper()  # First 3 letters of Category
-        product_id = self.id if self.id else "XXX"  # Placeholder if ID not assigned yet
-
-        # Collect attributes (e.g., Color, Size)
-        attributes = "-".join(
-            [attr.value[:3].upper() for attr in self.attributes.all()]
-        ) if self.attributes.exists() else ""
-
-        sku = f"{category_code}-{attributes}-{product_id}" if attributes else f"{category_code}-{product_id}"
-        return slugify(sku).upper()
+    def total_quantity(self):
+        """Calculates the total quantity of the product across all lots."""
+        return sum(lot.quantity for lot in self.lots.all())
+    
+    def is_low_stock(self):
+        """Checks if the stock level is below the threshold."""
+        return self.total_quantity() <= self.threshold_value
 
     def save(self, *args, **kwargs):
-        if not self.sku:  # Generate SKU only if not set
-            self.sku = self.generate_sku()
+        if not self.slug:
+            self.slug = slugify(self.product_name)
         super().save(*args, **kwargs)
 
 
@@ -59,12 +55,61 @@ class Category(models.Model):
     
 class Lot(models.Model):
     product = models.ForeignKey(Product, related_name="lots", on_delete=models.CASCADE)
-    purchase_price = models.DecimalField(max_digits=10, decimal_places=2)  # Price per unit when purchased
-    quantity = models.IntegerField()  # Number of units in the lot
-    purchase_date = models.DateTimeField(auto_now_add=True)  # Date when the lot was added to the inventory
+    sku = models.CharField(max_length=50, unique=True, blank=True)
+
+    # Stock & Expiry
+    quantity = models.PositiveIntegerField()  # Number of units in this batch
+    expired_date = models.DateField(null=True, blank=True)  # Expiration date
+
+    # Pricing
+    wholesale_purchase_price = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)  # Price when purchased in bulk
+    retail_purchase_price = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)  # Price per unit when bought individually
+    wholesale_selling_price = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)  # Selling price for bulk buyers
+    retail_selling_price = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)  # Selling price for individual customers
+
+    # Discounts (Multiple discounts can be added)
+    wholesale_discount_price = models.ManyToManyField('Discount', related_name="wholesale_discounts", blank=True)
+    retail_discount_price = models.ManyToManyField('Discount', related_name="retail_discounts", blank=True)
+
+    # Timestamps
+    purchase_date = models.DateTimeField(auto_now_add=True)  # Date of purchase
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f"Lot {self.id} of {self.product.name} at {self.warehouse.name}"
+        return f"Lot {self.id} - {self.product.product_name}"
 
     def cost_of_lot(self):
-        return self.purchase_price * self.quantity
+        """Calculates the total cost of the lot based on wholesale purchase price."""
+        return self.wholesale_purchase_price * self.quantity
+
+    def generate_sku(self):
+        """Generates a unique SKU for the lot."""
+        category_code = self.product.category.name[:3].upper()
+        unique_id = uuid.uuid4().hex[:6].upper()
+        return slugify(f"{category_code}-{unique_id}").upper()
+
+    @property
+    def stock_status(self):
+        if self.expired_date and self.expired_date < timezone.now():
+            return "Expired"
+        elif self.quantity > 0:
+            return "Available"
+        else:
+            return "Out of Stock"
+    def is_low_stock(self):
+        """Checks if the lot's stock is below the threshold."""
+        return self.quantity <= self.product.threshold_value
+    
+    def save(self, *args, **kwargs):
+        if not self.sku:  # Generate SKU if not set
+            self.sku = self.generate_sku()
+        super().save(*args, **kwargs)
+    
+class Discount(models.Model):
+    name = models.CharField(max_length=100)  # e.g., "Black Friday Sale"
+    value = models.DecimalField(max_digits=10, decimal_places=2)  # Percentage or fixed amount
+
+    def __str__(self):
+        return f"{self.name} ({self.value})"
+
