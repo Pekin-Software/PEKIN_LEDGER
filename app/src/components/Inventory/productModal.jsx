@@ -239,7 +239,7 @@ export default function ProductModal({ onClose }) {
           </label>
 
           {/* Attributes */}
-          <label>Attributes</label>
+          <label>Specifications</label>
           {attributes.map((attribute, index) => (
             <div key={index} className="attribute-row">
               <input 
