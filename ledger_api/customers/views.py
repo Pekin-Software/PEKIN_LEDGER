@@ -184,7 +184,8 @@ class LoginViewSet(viewsets.ViewSet):
             'access_token', access_token, 
             httponly=True, 
             secure=False,        # Only sent over HTTPS
-            samesite='Lax',  # Prevents CSRF by restricting cookies to same-site requests
+            samesite='None',
+            # samesite='Lax',  # Prevents CSRF by restricting cookies to same-site requests
             path='/'            # Cookie is available throughout the domain
         )
 
@@ -192,7 +193,8 @@ class LoginViewSet(viewsets.ViewSet):
             'refresh_token', str(refresh), 
             httponly=True, 
             secure=False,        # Only sent over HTTPS
-            samesite='Lax',  # Prevents CSRF by restricting cookies to same-site requests
+            samesite='None',
+            # samesite='Lax',  # Prevents CSRF by restricting cookies to same-site requests
             path='/'
         )
     

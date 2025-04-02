@@ -7,13 +7,15 @@ from .serializers import (
     ProductSerializer, ProductAttributeSerializer,
     CategorySerializer, LotSerializer, DiscountSerializer
 )
+from rest_framework.permissions import IsAuthenticated
 
 
 # ViewSet to handle everything in one request
 class ProductViewSet(viewsets.ModelViewSet):
     queryset = Product.objects.all()
     serializer_class = ProductSerializer
-
+    permission_classes = [IsAuthenticated]  # Enforces authentication
+    
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -54,10 +56,12 @@ class ProductViewSet(viewsets.ModelViewSet):
             return Response(lot_serializer.data, status=status.HTTP_201_CREATED)
         return Response(lot_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+
 class CategoryViewSet(viewsets.ModelViewSet):
     queryset = Category.objects.all()
     serializer_class = CategorySerializer
-
+    permission_classes = [IsAuthenticated]  # Enforces authentication
+    
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -87,6 +91,7 @@ class CategoryViewSet(viewsets.ModelViewSet):
 class LotViewSet(viewsets.ModelViewSet):
     queryset = Lot.objects.all().order_by('-created_at')
     serializer_class = LotSerializer
+    permission_classes = [IsAuthenticated]  # Enforces authentication
     
     @action(detail=True, methods=['put', 'patch'], url_path='update')
     def update_lot(self, request, pk=None):
@@ -106,7 +111,8 @@ class LotViewSet(viewsets.ModelViewSet):
 class DiscountViewSet(viewsets.ModelViewSet):
     queryset = Discount.objects.all()
     serializer_class = DiscountSerializer
-
+    permission_classes = [IsAuthenticated]  # Enforces authentication
+    
     @action(detail=False, methods=['get'], url_path='list')
     def list_discounts(self, request):
         """List all discounts"""

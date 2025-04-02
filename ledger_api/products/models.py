@@ -8,7 +8,7 @@ class Product(models.Model):
     product_name = models.CharField(max_length=255)
     slug = models.SlugField(unique=True, blank=True, max_length=300)
     category = models.ForeignKey('Category', on_delete=models.CASCADE, related_name='products')
-    unit = models.CharField(max_length=50)
+    unit = models.CharField(max_length=50, null=True, blank=True)
     description = models.TextField()
     threshold_value = models.PositiveIntegerField(default=0)
     product_image = models.ImageField(upload_to='product_images/', null=True, blank=True)
@@ -39,7 +39,7 @@ class Product(models.Model):
 
 
 class ProductAttribute(models.Model):
-    product = models.ForeignKey(Product, related_name='attributes', on_delete=models.CASCADE)
+    product = models.ForeignKey(Product, related_name='attributes', on_delete=models.CASCADE, null=True)
     name = models.CharField(max_length=100)  # e.g., 'Color', 'Memory', 'Screen Size'
     value = models.CharField(max_length=255)  # e.g., 'Black', '128GB', '6.5 inches'
 
@@ -54,7 +54,7 @@ class Category(models.Model):
         return self.name
     
 class Lot(models.Model):
-    product = models.ForeignKey(Product, related_name="lots", on_delete=models.CASCADE)
+    product = models.ForeignKey(Product, related_name="lots", on_delete=models.CASCADE, null=True)
     sku = models.CharField(max_length=50, unique=True, blank=True)
 
     # Stock & Expiry
@@ -72,7 +72,7 @@ class Lot(models.Model):
     retail_discount_price = models.ManyToManyField('Discount', related_name="retail_discounts", blank=True)
 
     # Timestamps
-    purchase_date = models.DateTimeField(auto_now_add=True)  # Date of purchase
+    purchase_date = models.DateField(null=True, blank=True)  # Date of purchase
     created_at = models.DateTimeField(default=timezone.now)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -107,6 +107,7 @@ class Lot(models.Model):
         super().save(*args, **kwargs)
     
 class Discount(models.Model):
+    lot = models.ForeignKey(Lot, related_name="discounts", on_delete=models.CASCADE, null=True)
     name = models.CharField(max_length=100)  # e.g., "Black Friday Sale"
     value = models.DecimalField(max_digits=10, decimal_places=2)  # Percentage or fixed amount
 
