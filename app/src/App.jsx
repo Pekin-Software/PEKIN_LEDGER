@@ -7,6 +7,7 @@ import LandingPage from "./components/landingpage";
 import "./App.css";
 import Authentication from "./components/Authentications/authentication";
 import Cookies from "js-cookie";
+import { ApiProvider } from "./ApiContext.jsx";
 
 function App() {
   const navigate = useNavigate();
@@ -18,7 +19,7 @@ function App() {
     const tenant = Cookies.get("tenant");
     setUserRole(role);
     setTenant(tenant);
-    console.log(Cookies.get())
+  
     // If userRole exists, redirect to the appropriate dashboard
     if (role) {
       navigate(`/${role.toLowerCase()}`);
@@ -27,7 +28,8 @@ function App() {
 
   
   return (
-    <div className="landing-container">
+   <ApiProvider>
+     <div className="landing-container">
       <Routes>
         <Route path="/login" element={<Authentication defaultSignIn={true} navigate={useNavigate()} />} />
         <Route path="/signup" element={<Authentication defaultSignIn={false} />} />
@@ -40,6 +42,7 @@ function App() {
         <Route path="/" element={<LandingPage />}/>
       </Routes>
     </div>
+   </ApiProvider>
   );
 }
 
