@@ -1,43 +1,47 @@
 import React, { useState, useEffect } from "react";
 import BarcodeScannerComponent from "react-qr-barcode-scanner";
 import "./productModal.css";
+import CategoryForm from "./categoryform";
+import { useApi } from "../../ApiContext.jsx";
 
 export default function ProductModal({ onClose }) {
+  const { categories, addProduct } = useApi();
+  const [selectedCategory, setSelectedCategory] = useState("");
+  const [isModalOpen, setIsModalOpen] = useState(false); // State for modal visibility
+
   const [image, setImage] = useState(null);
   const [barcodeData, setBarcodeData] = useState("");
   const [showScanner, setShowScanner] = useState(false);
   const [selectedUnit, setSelectedUnit] = useState("");
   const [currency, setCurrency] = useState("USD");
-
-  // Pricing fields
-  const [wholesalePrice, setWholesalePrice] = useState("");
-  const [retailPrice, setRetailPrice] = useState("");
-  const [wholesaleSelling, setWholesaleSelling] = useState("");
-  const [retailSelling, setRetailSelling] = useState("");
-
+  
   // Discount prices (up to 3 entries each)
   const [wholesaleDiscounts, setWholesaleDiscounts] = useState([{ price: "", percentage: "", isValid: false }]);
   const [retailDiscounts, setRetailDiscounts] = useState([{ price: "", percentage: "", isValid: false }]);
 
-  // GST
-  const [gstIncluded, setGstIncluded] = useState(false);
-  const [gstExcluded, setGstExcluded] = useState(false);
-  const [wholesaleGST, setWholesaleGST] = useState("");
-  const [retailGST, setRetailGST] = useState("");
+  // state variables for Wholesale GST Included/Excluded
+  const [wholesaleGstIncluded, setwholesalewholesaleGstIncluded] = useState(false);
+  const [wholesaleGstExcluded, setwholesaleGstExcluded] = useState(false);
+  const [wholesaleGST, setWholesaleGST] = useState(""); //Wholesale GST Statee
+
+  //  state variables for Retail GST Included/Excluded
+  const [gstRetailIncluded, setGstRetailIncluded] = useState(false);
+  const [gstRetailExcluded, setGstRetailExcluded] = useState(false);
+  const [retailGST, setRetailGST] = useState(""); // Retail GST State
 
   const handleImageUpload = (event) => {
-    const file = event.target.files[0];
+    const file = event.target.files[0]; // Get uploaded file
     if (file) {
+      setFormData((prevData) => ({ ...prevData, product_image: file }));
+
       const reader = new FileReader();
       reader.onloadend = () => {
-        setImage(reader.result);
+        setImage(reader.result); // Update the image preview
       };
       reader.readAsDataURL(file);
     }
   };
 
-   // Description and Attributes
-  const [description, setDescription] = useState("");
   const [attributes, setAttributes] = useState([{ name: "", value: "" }]);
  
   // Ordered list of units
@@ -50,12 +54,12 @@ export default function ProductModal({ onClose }) {
 
 
     // Handle barcode scan
-    const handleScan = (err, result) => {
-      if (result) {
-        setBarcodeData(result.text); // Save barcode
-        setShowScanner(false); // Hide scanner after scan
-      }
-    };
+  const handleScan = (err, result) => {
+    if (result) {
+      setBarcodeData(result.text); // Save barcode
+      setShowScanner(false); // Hide scanner after scan
+    }
+  };
 
   // Price validation (ensures correct decimal formatting)
   const formatPrice = (value) => {
@@ -65,7 +69,7 @@ export default function ProductModal({ onClose }) {
   };
 
   // Handle discount addition/removal
-  const addDiscount = (setter, discounts) => {
+  const addDiscount = (setter) => {
     setter((prev) => (prev.length < 3 ? [...prev, { price: "", percentage: "", isValid: false }] : prev));
   };
 
@@ -74,17 +78,23 @@ export default function ProductModal({ onClose }) {
   };
 
   // Handle discount calculation
-  const handleDiscountChange = (setter, index, value, type, sellingPrice) => {
+  const handleDiscountChange = (setter, index, value, type) => {
     setter((prev) => {
       const newDiscounts = [...prev];
       newDiscounts[index][type] = value;
 
+      const wholesalePrice = parseFloat(formData.lots[0].wholesale_selling_price); // Get wholesale selling price
       // Calculate price if percentage is entered
       if (type === "percentage" && value) {
-        const discountAmount = (parseFloat(sellingPrice || 0) * parseFloat(value)) / 100;
-        newDiscounts[index].price = (parseFloat(sellingPrice || 0) - discountAmount).toFixed(2);
+        const discountAmount = (wholesalePrice * parseFloat(value)) / 100;
+        newDiscounts[index].price = (wholesalePrice - discountAmount).toFixed(2);
       }
-
+      const retailPrice = parseFloat(formData.lots[0].retail_selling_price); // Get wholesale selling price
+      // Calculate price if percentage is entered
+      if (type === "percentage" && value) {
+        const discountAmount = (retailPrice * parseFloat(value)) / 100;
+        newDiscounts[index].price = (retailPrice - discountAmount).toFixed(2);
+      }
       // If price is entered manually, keep it as it is
       if (type === "price" && value) {
         newDiscounts[index].price = value;
@@ -95,11 +105,6 @@ export default function ProductModal({ onClose }) {
 
       return newDiscounts;
     });
-  };
-
-   // Handle description change
-   const handleDescriptionChange = (event) => {
-    setDescription(event.target.value);
   };
 
   // Handle dynamic addition of attributes (up to 5)
@@ -117,30 +122,12 @@ export default function ProductModal({ onClose }) {
     setAttributes(attributes.filter((_, i) => i !== index));
   };
 
-  const handleAttributeChange = (index, field, value) => {
+  const handleAttributeChange = (index, e) => {
+    const { name, value } = e.target;
     const updatedAttributes = [...attributes];
-    updatedAttributes[index][field] = value;
+    updatedAttributes[index][name] = value;
     setAttributes(updatedAttributes);
   };
-
-  // GST Calculation
-  useEffect(() => {
-    if (gstIncluded && wholesaleSelling) {
-      setWholesaleGST((parseFloat(wholesaleSelling) * 12) / 112); // GST already in price
-    } else if (gstExcluded && wholesaleSelling) {
-      setWholesaleGST((parseFloat(wholesaleSelling) * 12) / 100); // Add 12% GST
-    } else {
-      setWholesaleGST("");
-    }
-
-    if (gstIncluded && retailSelling) {
-      setRetailGST((parseFloat(retailSelling) * 12) / 112);
-    } else if (gstExcluded && retailSelling) {
-      setRetailGST((parseFloat(retailSelling) * 12) / 100);
-    } else {
-      setRetailGST("");
-    }
-  }, [gstIncluded, gstExcluded, wholesaleSelling, retailSelling]);
 
   // Handle price formatting on blur
   const handleBlur = (setter, value) => {
@@ -153,11 +140,74 @@ export default function ProductModal({ onClose }) {
     handleDiscountChange(setter, index, formattedValue, type, sellingPrice);
   };
 
-  // Helper function to check if at least one discount field is filled
-  const isDiscountValid = (discounts) => {
-    return discounts.some(
-      (discount) => discount.price !== "" || discount.percentage !== ""
-    );
+  const [formData, setFormData] = useState({
+    product_name: '',
+    category: '',
+    unit: '',
+    description: '',
+    threshold_value: '',
+    product_image: null,
+    attributes: [],
+    lots: [
+      {
+        purchased_date: "",
+        quantity: "",
+        expired_date: "",
+        wholesale_purchase_price: "",
+        retail_purchase_price: "",
+        wholesale_selling_price: "",
+        retail_selling_price: "",
+        wholesale_discount_price: [],
+        retail_discount_price: []
+      }
+    ]
+  });
+  
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData({ ...formData, [name]: value });
+  };
+
+  const handleLotChange = (index, e) => {
+    const { name, value } = e.target;
+    
+    setFormData((prevFormData) => {
+      const newLots = [...prevFormData.lots];
+      newLots[index][name] = value; // This updates wholesale_selling_price in the formData
+      return { ...prevFormData, lots: newLots };
+    });
+  };
+
+  // GST Calculation
+  useEffect(() => {
+    // GST Calculation for Wholesale Price
+    if (wholesaleGstIncluded && formData.lots[0].wholesale_selling_price) {
+      // GST is included in price, calculate GST amount
+      setWholesaleGST((parseFloat(formData.lots[0].wholesale_selling_price) * 12) / 100); // GST portion when price includes GST
+    } else if (wholesaleGstExcluded && formData.lots[0].wholesale_selling_price) {
+      // Add 12% GST to the price if GST is excluded
+      setWholesaleGST((parseFloat(formData.lots[0].wholesale_selling_price) * 12) / 100); // GST amount when price excludes GST
+    } else {
+      setWholesaleGST(""); // Clear GST if no price is available
+    }
+  
+    // GST Calculation for Retail Price
+    if (gstRetailIncluded && formData.lots[0].retail_selling_price) {
+      // GST is included in price, calculate GST amount
+      setRetailGST((parseFloat(formData.lots[0].retail_selling_price) * 12) / 100); // GST portion when price includes GST
+    } else if (gstRetailExcluded && formData.lots[0].retail_selling_price) {
+      // Add 12% GST to the price if GST is excluded
+      setRetailGST((parseFloat(formData.lots[0].retail_selling_price) * 12) / 100); // GST amount when price excludes GST
+    } else {
+      setRetailGST(""); // Clear GST if no price is available
+    }
+  }, [wholesaleGstIncluded, wholesaleGstExcluded, gstRetailIncluded, gstRetailExcluded, formData.lots[0].wholesale_selling_price, formData.lots[0].retail_selling_price]);
+  
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    await addProduct(formData, selectedCategory, selectedUnit, attributes, wholesaleDiscounts, retailDiscounts);
   };
 
   return (
@@ -170,73 +220,75 @@ export default function ProductModal({ onClose }) {
           </label>
           <input id="image-upload" type="file" accept="image/*" onChange={handleImageUpload} hidden />
         </div>
-        <form>
+
+        <button className="open-modal-btn" onClick={() => setIsModalOpen(true)}>
+        Create Category
+        </button>
+
+        {/* Category Modal */}
+        {isModalOpen && <CategoryForm  closeModal={() => setIsModalOpen(false)} />}
+
+        <label>Category:</label>
+      
+
+        <form onSubmit={handleSubmit}>
           {/* Barcode */}
           <section>
-          <label>
-            Barcode:
-            <input type="text" name="barcode" value={barcodeData} readOnly />
-          </label>
-
-          <div className="barcode-buttons">
-            <button type="button" onClick={() => setShowScanner(true)}>Add Barcode</button>           
-            <button type="button">Generate Barcode</button>
-          </div>
-
-          {showScanner && (
-            <BarcodeScannerComponent width={300} height={100} onUpdate={handleScan} />
-          )}
-        
-              <label>
-                Product Name
-                <input type="text" placeholder="Enter product name" required />
-              </label>
             <label>
-                Category
-                <input type="text" placeholder="Enter category" required />
-              </label>
+              Barcode:
+              <input type="text" name="barcode" value={barcodeData} readOnly />
+            </label>
+
+            <div className="barcode-buttons">
+              <button type="button" onClick={() => setShowScanner(true)}>Add Barcode</button>           
+              <button type="button">Generate Barcode</button>
+            </div>
+
+            {showScanner && (
+              <BarcodeScannerComponent width={300} height={100} onUpdate={handleScan} />
+            )}
+        
+            <div>
               <label>
-                SKU
-                <input type="text" placeholder="Enter product SKU" required />
-              </label>
-
-
-
-                                 
-<label>
-                Quantity
-                <input type="number" placeholder="Enter quantity" required />
-              </label>
-
-          <label>
-            Unit
-            <select value={selectedUnit} onChange={(e) => setSelectedUnit(e.target.value)} required>
-              <option value="">Select Unit</option>
-              {unitOptions.map((unit) => (
-                <option key={unit} value={unit}>{unit}</option>
-              ))}
-            </select>
-          </label>
-
-              <label>
-                Expiry Date
-                <input type="date" required />
+                  Product Name:
+                  <input type="text" name="product_name" value={formData.product_name} onChange={handleChange} required />
               </label>
               
               <label>
-                Threshold Value
-                <input type="number" placeholder="Enter threshold value" required />
+                  Category:
+                  <select name="category" value={selectedCategory} onChange={(e) => setSelectedCategory(e.target.value)} required>
+                    <option value="">Select a category</option>
+                    {categories.map((cat) => (
+                      <option key={cat.id} value={cat.id}>{cat.name}</option>
+                    ))}
+                  </select>
+
               </label>
-               
-           {/* Description */}
-           <label>
-            Description:
-            <textarea 
-              value={description} 
-              onChange={handleDescriptionChange} 
-              placeholder="Enter product description"
-            />
-          </label>
+
+              <label>
+                Unit
+                <select name="unit" value={selectedUnit} onChange={(e) => setSelectedUnit(e.target.value)}>
+                  <option value="">Select Unit</option>
+                  {unitOptions.map((unit) => (
+                    <option key={unit} value={unit}>{unit}</option>
+                  ))}
+                </select>
+              </label>
+
+              <label>
+                  Description:
+                  <textarea name="description" value={formData.description} onChange={handleChange} required />
+              </label>
+
+              <label>
+                  Threshold Value:
+                  <input type="number" name="threshold_value" value={formData.threshold_value} onChange={handleChange} required />
+              </label>
+            </div>
+            
+                                 
+             
+              
 
           {/* Attributes */}
           <label>Specifications</label>
@@ -244,16 +296,20 @@ export default function ProductModal({ onClose }) {
             <div key={index} className="attribute-row">
               <input 
                 type="text" 
-                placeholder="Name" 
-                value={attribute.name} 
-                onChange={(e) => handleAttributeChange(index, "name", e.target.value)} 
+                name="name" 
+                value={attribute.name}  
+                onChange={(e) => handleAttributeChange(index, e)} 
+                placeholder="Attribute Name"
+                required 
               />
               <input 
-                type="text" 
-                placeholder="Value" 
-                value={attribute.value} 
-                onChange={(e) => handleAttributeChange(index, "value", e.target.value)} 
-              />
+                          type="text" 
+                          name="value" 
+                          value={attribute.value} 
+                          onChange={(e) => handleAttributeChange(index, e)} 
+                          placeholder="Attribute Value" 
+                          required 
+                        />
               {index === attributes.length - 1 && attributes.length < 5 && (
                 <button type="button" onClick={addAttribute}>Add</button>
               )}
@@ -263,15 +319,48 @@ export default function ProductModal({ onClose }) {
             </div>
           ))}
           </section>
-          <section>
+
+          <section className="lot">
+          <label>
+              Purchased Date
+              <input 
+                type="date" 
+                name="purchased_date"
+                value={formData.lots[0].purchased_date}
+                onChange={(e) => handleLotChange(0, e)}
+                required 
+              />
+            </label>
+            <label>
+              Quantity
+              <input 
+                type="number" 
+                name="quantity"
+                value={formData.lots[0].quantity}
+                onChange={(e) => handleLotChange(0, e)}
+                required 
+              />
+            </label>
+
+            <label>
+              Expiry Date
+              <input 
+                type="date" 
+                name="expired_date"
+                value={formData.lots[0].expired_date}
+                onChange={(e) => handleLotChange(0, e)}
+                required 
+              />
+            </label>
             {/* Prices */}
           <label>
             Wholesale Purchasing Price
             <input 
               type="text" 
-              value={wholesalePrice} 
-              onChange={(e) => setWholesalePrice(e.target.value)} 
-              onBlur={(e) => handleBlur(setWholesalePrice, e.target.value)} 
+              name="wholesale_purchase_price"
+              value={formData.lots[0].wholesale_purchase_price}
+              onChange={(e) => handleLotChange(0, e)}
+              onBlur={(e) => handleBlur((value) => handleLotChange(0, { target: { name: 'wholesale_purchase_price', value } }), e.target.value)}
             />
             <select value={currency} onChange={(e) => setCurrency(e.target.value)}>
               <option value="USD">USD</option>
@@ -283,9 +372,10 @@ export default function ProductModal({ onClose }) {
             Retail Purchasing Price
             <input 
               type="text" 
-              value={retailPrice} 
-              onChange={(e) => setRetailPrice(e.target.value)} 
-              onBlur={(e) => handleBlur(setRetailPrice, e.target.value)} 
+              name="retail_purchase_price"
+              value={formData.lots[0].retail_purchase_price}
+              onChange={(e) => handleLotChange(0, e)}
+              onBlur={(e) => handleBlur((value) => handleLotChange(0, { target: { name: 'retail_purchase_price', value } }), e.target.value)}
             />
             <select value={currency} onChange={(e) => setCurrency(e.target.value)}>
               <option value="USD">USD</option>
@@ -297,9 +387,10 @@ export default function ProductModal({ onClose }) {
             Wholesale Selling Price
             <input 
               type="text" 
-              value={wholesaleSelling} 
-              onChange={(e) => setWholesaleSelling(e.target.value)} 
-              onBlur={(e) => handleBlur(setWholesaleSelling, e.target.value)} 
+              name="wholesale_selling_price"
+              value={formData.lots[0].wholesale_selling_price}
+              onChange={(e) => handleLotChange(0, e)}
+              onBlur={(e) => handleBlur((value) => handleLotChange(0, { target: { name: 'wholesale_selling_price', value } }), e.target.value)}
             />
             <select value={currency} onChange={(e) => setCurrency(e.target.value)}>
               <option value="USD">USD</option>
@@ -308,114 +399,147 @@ export default function ProductModal({ onClose }) {
             <div>
               <input 
                 type="checkbox" 
-                checked={gstIncluded} 
+                checked={wholesaleGstIncluded} 
                 onChange={() => {
-                  setGstIncluded(true);
-                  setGstExcluded(false);
+                  setwholesalewholesaleGstIncluded(true);
+                  setwholesaleGstExcluded(false);
                 }} 
               /> GST Included
               <input 
                 type="checkbox" 
-                checked={gstExcluded} 
+                checked={wholesaleGstExcluded} 
                 onChange={() => {
-                  setGstExcluded(true);
-                  setGstIncluded(false);
+                  setwholesaleGstExcluded(true);
+                  setwholesalewholesaleGstIncluded(false);
                 }} 
               /> GST Excluded
             </div>
             {wholesaleGST && <span>GST: {wholesaleGST.toFixed(2)}</span>}
           </label>
 
+         
           <label>
-            Retail Selling Price
-            <input 
-              type="text" 
-              value={retailSelling} 
-              onChange={(e) => setRetailSelling(e.target.value)} 
-              onBlur={(e) => handleBlur(setRetailSelling, e.target.value)} 
-            />
-            <select value={currency} onChange={(e) => setCurrency(e.target.value)}>
-              <option value="USD">USD</option>
-              <option value="LRD">LRD</option>
-            </select>
-            {retailGST && <span>GST: {retailGST.toFixed(2)}</span>}
-          </label>
+  Retail Selling Price
+  <input 
+    type="text" 
+    name="retail_selling_price" 
+    value={formData.lots[0].retail_selling_price}
+    onChange={(e) => handleLotChange(0, e)}
+    onBlur={(e) => handleBlur((value) => handleLotChange(0, { target: { name: 'retail_selling_price', value } }), e.target.value)}
+  />
+  <select value={currency} onChange={(e) => setCurrency(e.target.value)}>
+    <option value="USD">USD</option>
+    <option value="LRD">LRD</option>
+  </select>
+  <div>
+    {/* Retail GST Included Checkbox */}
+    <input 
+      type="checkbox" 
+      checked={gstRetailIncluded} 
+      onChange={() => {
+        setGstRetailIncluded(true);
+        setGstRetailExcluded(false);
+      }} 
+    /> GST Included
 
+    {/* Retail GST Excluded Checkbox */}
+    <input 
+      type="checkbox" 
+      checked={gstRetailExcluded} 
+      onChange={() => {
+        setGstRetailExcluded(true);
+        setGstRetailIncluded(false);
+      }} 
+    /> GST Excluded
+  </div>
+
+  {/* Display Retail GST calculation */}
+  {retailGST && <span>Retail GST: {retailGST.toFixed(2)}</span>}
+</label>
           {/* Discounted Prices */}
-          <label>Wholesale Discount Price</label>
-          {wholesaleDiscounts.map((discount, index) => (
-            <div key={index} className="discount-row">
-              <input 
-                type="text" 
-                value={discount.price} 
-                onChange={(e) => handleDiscountChange(setWholesaleDiscounts, index, e.target.value, "price", wholesaleSelling)} 
-                onBlur={(e) => handleDiscountBlur(setWholesaleDiscounts, index, e.target.value, "price", wholesaleSelling)}
-              />
-              <select value={currency} onChange={(e) => setCurrency(e.target.value)}>
-              <option value="USD">USD</option>
-              <option value="LRD">LRD</option>
-            </select>
-              <input 
-                type="number" 
-                placeholder="%" 
-                value={discount.percentage} 
-                onChange={(e) => handleDiscountChange(setWholesaleDiscounts, index, e.target.value, "percentage", wholesaleSelling)} 
-              />
-              {index === wholesaleDiscounts.length - 1 && wholesaleDiscounts.length < 3 && (
-                <button 
-                  type="button" 
-                  onClick={() => addDiscount(setWholesaleDiscounts)} 
-                  disabled={!discount.isValid}
-                >
-                  +
-                </button>
-              )}
-              {wholesaleDiscounts.length > 1 && (
-                <button type="button" onClick={() => removeDiscount(setWholesaleDiscounts, index)}>-</button>
-              )}
-            </div>
-          ))}
 
-          <label>Retail Discount Price</label>
-          {retailDiscounts.map((discount, index) => (
-            <div key={index} className="discount-row">
-              <input 
-                type="text" 
-                value={discount.price} 
-                onChange={(e) => handleDiscountChange(setRetailDiscounts, index, e.target.value, "price", retailSelling)} 
-                onBlur={(e) => handleDiscountBlur(setRetailDiscounts, index, e.target.value, "price", retailSelling)}
-              /> 
-              <select value={currency} onChange={(e) => setCurrency(e.target.value)}>
-              <option value="USD">USD</option>
-              <option value="LRD">LRD</option>
-            </select>
-              <input 
-                type="number" 
-                placeholder="%" 
-                value={discount.percentage} 
-                onChange={(e) => handleDiscountChange(setRetailDiscounts, index, e.target.value, "percentage", retailSelling)} 
-              />
-              {index === retailDiscounts.length - 1 && retailDiscounts.length < 3 && (
-                <button 
-                  type="button" 
-                  onClick={() => addDiscount(setRetailDiscounts)} 
-                  disabled={!discount.isValid}
-                >
-                  +
-                </button>
-              )}
-              {retailDiscounts.length > 1 && (
-                <button type="button" onClick={() => removeDiscount(setRetailDiscounts, index)}>-</button>
-              )}
-            </div>
-          ))}
+
+<label>
+  Wholesale Discount Price
+  {wholesaleDiscounts.map((discount, index) => (
+    <div key={index} className="discount-row">
+      <input 
+        type="text" 
+        value={discount.price} 
+        onChange={(e) => handleDiscountChange(setWholesaleDiscounts, index, e.target.value, "price", formData.lots[0].wholesale_selling_price)} 
+        onBlur={(e) => handleDiscountBlur(setWholesaleDiscounts, index, e.target.value, "price", formData.lots[0].wholesale_selling_price)}
+        
+      />
+      <select value={currency} onChange={(e) => setCurrency(e.target.value)}>
+        <option value="USD">USD</option>
+        <option value="LRD">LRD</option>
+      </select>
+      <input 
+        type="number" 
+        placeholder="%" 
+        value={discount.percentage} 
+        onChange={(e) => handleDiscountChange(setWholesaleDiscounts, index, e.target.value, "percentage", formData.lots[0].wholesale_selling_price)} 
+        
+      />
+      {index === wholesaleDiscounts.length - 1 && wholesaleDiscounts.length < 3 && (
+        <button 
+          type="button" 
+          onClick={() => addDiscount(setWholesaleDiscounts)} 
+          disabled={!discount.isValid}
+        >
+          +
+        </button>
+      )}
+      {wholesaleDiscounts.length > 1 && (
+        <button type="button" onClick={() => removeDiscount(setWholesaleDiscounts, index)}>-</button>
+      )}
+    </div>
+  ))}
+</label>
+
+<label>
+  Retail Discount Price
+  {retailDiscounts.map((discount, index) => (
+    <div key={index} className="discount-row">
+      <input 
+        type="text" 
+        value={discount.price} 
+        onChange={(e) => handleDiscountChange(setRetailDiscounts, index, e.target.value, "price", formData.lots[0].retail_selling_price)} 
+        onBlur={(e) => handleDiscountBlur(setRetailDiscounts, index, e.target.value, "price", formData.lots[0].retail_selling_price)}
+      />
+      <select value={currency} onChange={(e) => setCurrency(e.target.value)}>
+        <option value="USD">USD</option>
+        <option value="LRD">LRD</option>
+      </select>
+      <input 
+        type="number" 
+        placeholder="%" 
+        value={discount.percentage} 
+        onChange={(e) => handleDiscountChange(setRetailDiscounts, index, e.target.value, "percentage", formData.lots[0].retail_selling_price)} 
+      />
+      {index === retailDiscounts.length - 1 && retailDiscounts.length < 3 && (
+        <button 
+          type="button" 
+          onClick={() => addDiscount(setRetailDiscounts)} 
+          disabled={!discount.isValid}
+        >
+          +
+        </button>
+      )}
+      {retailDiscounts.length > 1 && (
+        <button type="button" onClick={() => removeDiscount(setRetailDiscounts, index)}>-</button>
+      )}
+    </div>
+  ))}
+</label>
           </section>
+          
           {/* Submit Buttons */}
           
         </form>
         <div className="modal-actions">
             <button type="button" onClick={onClose}>Discard</button>
-            <button type="submit">Add Product</button>
+            <button type="submit" onClick={handleSubmit}>Add Product</button>
           </div>
       </div>
     </div>
