@@ -9,7 +9,7 @@ export default function ProductModal({ onClose }) {
   const [selectedCategory, setSelectedCategory] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false); // State for modal visibility
 
-  const [image, setImage] = useState(null);
+ 
   const [barcodeData, setBarcodeData] = useState("");
   const [showScanner, setShowScanner] = useState(false);
   const [selectedUnit, setSelectedUnit] = useState("");
@@ -29,18 +29,7 @@ export default function ProductModal({ onClose }) {
   const [gstRetailExcluded, setGstRetailExcluded] = useState(false);
   const [retailGST, setRetailGST] = useState(""); // Retail GST State
 
-  const handleImageUpload = (event) => {
-    const file = event.target.files[0]; // Get uploaded file
-    if (file) {
-      setFormData((prevData) => ({ ...prevData, product_image: file }));
 
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setImage(reader.result); // Update the image preview
-      };
-      reader.readAsDataURL(file);
-    }
-  };
 
   const [attributes, setAttributes] = useState([{ name: "", value: "" }]);
  
@@ -214,13 +203,7 @@ export default function ProductModal({ onClose }) {
     <div className="modal-overlay">
       <div className="modal-content" onClick={(e) => e.stopPropagation()}>
         <h2>New Product</h2>
-        <div className="image-upload">
-          <label htmlFor="image-upload" className="image-holder">
-            {image ? <img src={image} alt="Product" /> : "Drag image or Browse"}
-          </label>
-          <input id="image-upload" type="file" accept="image/*" onChange={handleImageUpload} hidden />
-        </div>
-
+        
         <button className="open-modal-btn" onClick={() => setIsModalOpen(true)}>
         Create Category
         </button>
