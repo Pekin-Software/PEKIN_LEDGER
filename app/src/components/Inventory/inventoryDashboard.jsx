@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import "./inventoryDashboard.css";
 import { Filter } from "lucide-react";
 import ProductModal from "./productModal";
-
+import ProductDetail from "./ProductDetails/productDetails";
 // const DEFAULT_IMAGE = "";
 
 function Card({ title, value, detail, color }) {
@@ -16,9 +16,9 @@ function Card({ title, value, detail, color }) {
   }
   
 
-function ProductCard({ product }) {
+function ProductCard({ product, onProductClick}) {
     return (
-      <div className="product-card">
+      <div className="product-card" onClick={() => onProductClick(product)}>
         <div className="product-image-container">
           <img src={product.image || ""} alt={product.name} className="product-image" />
         </div>
@@ -59,7 +59,8 @@ export default function InventoryDashboard() {
       { name: "Product B", price: 200, quantity: 20, expiry: "2025-10-15", available: "Out-Stock"},
     
   ]);
-    
+  const [selectedProduct, setSelectedProduct] = useState(null);
+
   const [showFilter, setShowFilter] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const filterRef = useRef(null);
@@ -80,56 +81,71 @@ export default function InventoryDashboard() {
       console.log("Selected filter:", option);
       setShowFilter(false);
   };
+
+   // Handle when a product card is clicked
+  const handleProductClick = (product) => {
+    setSelectedProduct(product); // Set the selected product
+  };
+
   return (
       <div className="inventory-container">
-        <section className="overview">
-          <h2>Inventory Overview</h2>
-          <div className="card-container">
-            <Card title="Total Products" value={500} detail="All stocked items" color="blue" />
-            <Card title="Categories" value={20} detail="Product Group" color="red" />
-            <Card title="Top Selling" value={500} detail="Highest sales volume" color="blue" />
-            <Card title="In Stock" value={5} detail="Reorder soon" color="green" />
-            <Card title="Out of Stock" value={5} detail="Reorder soon" color="orange" />
-            <Card title="Low Stock" value={20} detail="Needs restocking" color="red" />
-            <Card title="Expiring Soon" value={15} detail="Check expiry dates" color="purple" />
-            <Card title="Total Value" value={150000} detail="Inventory worth" color="green" />
-          </div>
-        </section>
-        
-        <section className="products">
-          <div className="products-header">
-            <h2>Products</h2>
-            <div className="actions">
-
-            <button className="add-product" onClick={() => setShowModal(true)}>Add Product</button>
-
-              <div className="filter-container" ref={filterRef}>
-                <button className="filter-button" onClick={() => setShowFilter(!showFilter)}>
-                  <span className="filter-icon"><Filter size={16} /></span>
-                  <span className="filter-text">Filter</span>
-                </button>
-                {showFilter && (
-                  <ul className="filter-options">
-                    <li onClick={() => handleFilterClick("In-Stock")}>In-Stock</li>
-                    <li onClick={() => handleFilterClick("Out-of-Stock")}>Out-of-Stock</li>
-                    <li onClick={() => handleFilterClick("Low Stock")}>Low Stock</li>
-                    <li onClick={() => handleFilterClick("Prices: Low to High")}>Prices: Low to High</li>
-                    <li onClick={() => handleFilterClick("Prices: High to Low")}>Prices: High to Low</li>
-                    <li onClick={() => handleFilterClick("Expiring Date")}>Expiring Date</li>
-                  </ul>
-                )}
+        {!selectedProduct ? (
+          <>
+            <section className="overview">
+              <h2>Inventory Overview</h2>
+              <div className="card-container">
+                <Card title="Total Products" value={500} detail="All stocked items" color="blue" />
+                <Card title="Categories" value={20} detail="Product Group" color="red" />
+                <Card title="Top Selling" value={500} detail="Highest sales volume" color="blue" />
+                <Card title="In Stock" value={5} detail="Reorder soon" color="green" />
+                <Card title="Out of Stock" value={5} detail="Reorder soon" color="orange" />
+                <Card title="Low Stock" value={20} detail="Needs restocking" color="red" />
+                <Card title="Expiring Soon" value={15} detail="Check expiry dates" color="purple" />
+                <Card title="Total Value" value={150000} detail="Inventory worth" color="green" />
               </div>
-              <button className="download">Download All</button>
-            </div>
-          </div>
-          
-          <div className="product-grid scrollable">
-            {products.map((product, index) => (
-              <ProductCard key={index} product={product} />
-            ))}
-          </div>
-          
-        </section>
+            </section>
+
+            <section className="products">
+              <div className="products-header">
+                <h2>Products</h2>
+                <div className="actions">
+
+                <button className="add-product" onClick={() => setShowModal(true)}>Add Product</button>
+
+                  <div className="filter-container" ref={filterRef}>
+                    <button className="filter-button" onClick={() => setShowFilter(!showFilter)}>
+                      <span className="filter-icon"><Filter size={16} /></span>
+                      <span className="filter-text">Filter</span>
+                    </button>
+                    {showFilter && (
+                      <ul className="filter-options">
+                        <li onClick={() => handleFilterClick("In-Stock")}>In-Stock</li>
+                        <li onClick={() => handleFilterClick("Out-of-Stock")}>Out-of-Stock</li>
+                        <li onClick={() => handleFilterClick("Low Stock")}>Low Stock</li>
+                        <li onClick={() => handleFilterClick("Prices: Low to High")}>Prices: Low to High</li>
+                        <li onClick={() => handleFilterClick("Prices: High to Low")}>Prices: High to Low</li>
+                        <li onClick={() => handleFilterClick("Expiring Date")}>Expiring Date</li>
+                      </ul>
+                    )}
+                  </div>
+                  <button className="download">Download All</button>
+                </div>
+              </div>
+              
+              <div className="product-grid scrollable">
+                {products.map((product, index) => (
+                  <ProductCard key={index} product={product} onProductClick={handleProductClick}  />
+                ))}
+              </div>
+              
+            </section>
+          </>
+        ):(
+           // Show only ProductDetail if a product is selected
+          <ProductDetail product={selectedProduct} onClose={() => setSelectedProduct(null)} />
+        )
+      }
+         {/* Show ProductModal when modal is open */}
         {showModal && <ProductModal onClose={() => setShowModal(false)} />}
       </div>
     );
