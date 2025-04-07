@@ -3,6 +3,7 @@ import "./inventoryDashboard.css";
 import { Filter } from "lucide-react";
 import ProductModal from "./productModal";
 import ProductDetail from "./ProductDetails/productDetails";
+import { useApi } from "../../ApiContext.jsx";
 // const DEFAULT_IMAGE = "";
 
 function Card({ title, value, detail, color }) {
@@ -32,33 +33,12 @@ function ProductCard({ product, onProductClick}) {
   }
   
 export default function InventoryDashboard() {
-  const [products] = useState([
-      { name: "Product A", price: 100, quantity: 50, expiry: "2025-12-31", available: "In-Stock"},
-      { name: "Product B", price: 200, quantity: 20, expiry: "2025-10-15", available: "Out-Stock"},
-      { name: "Product A", price: 100, quantity: 50, expiry: "2025-12-31", available: "In-Stock"},
-      { name: "Product B", price: 200, quantity: 20, expiry: "2025-10-15", available: "Out-Stock"},
-      { name: "Product A", price: 100, quantity: 50, expiry: "2025-12-31", available: "In-Stock"},
-      { name: "Product B", price: 200, quantity: 20, expiry: "2025-10-15", available: "Out-Stock"},
-      { name: "Product A", price: 100, quantity: 50, expiry: "2025-12-31", available: "In-Stock"},
-      { name: "Product B", price: 200, quantity: 20, expiry: "2025-10-15", available: "Out-Stock"},
-      { name: "Product A", price: 100, quantity: 50, expiry: "2025-12-31", available: "In-Stock"},
-      { name: "Product B", price: 200, quantity: 20, expiry: "2025-10-15", available: "Out-Stock"},
-      { name: "Product A", price: 100, quantity: 50, expiry: "2025-12-31", available: "In-Stock"},
-      { name: "Product B", price: 200, quantity: 20, expiry: "2025-10-15", available: "Out-Stock"},
-      { name: "Product A", price: 100, quantity: 50, expiry: "2025-12-31", available: "In-Stock"},
-      { name: "Product B", price: 200, quantity: 20, expiry: "2025-10-15", available: "Out-Stock"},
-      { name: "Product A", price: 100, quantity: 50, expiry: "2025-12-31", available: "In-Stock"},
-      { name: "Product B", price: 200, quantity: 20, expiry: "2025-10-15", available: "Out-Stock"},
-      { name: "Product A", price: 100, quantity: 50, expiry: "2025-12-31", available: "In-Stock"},
-      { name: "Product B", price: 200, quantity: 20, expiry: "2025-10-15", available: "Out-Stock"},
-      { name: "Product A", price: 100, quantity: 50, expiry: "2025-12-31", available: "In-Stock"},
-      { name: "Product B", price: 200, quantity: 20, expiry: "2025-10-15", available: "Out-Stock"},
-      { name: "Product A", price: 100, quantity: 50, expiry: "2025-12-31", available: "In-Stock"},
-      { name: "Product B", price: 200, quantity: 20, expiry: "2025-10-15", available: "Out-Stock"},
-      { name: "Product A", price: 100, quantity: 50, expiry: "2025-12-31", available: "In-Stock"},
-      { name: "Product B", price: 200, quantity: 20, expiry: "2025-10-15", available: "Out-Stock"},
-    
-  ]);
+  const { fetchProducts, products, productsLoading, productsError } = useApi();
+
+  useEffect(() => {
+    fetchProducts();
+  }, []);
+ 
   const [selectedProduct, setSelectedProduct] = useState(null);
 
   const [showFilter, setShowFilter] = useState(false);
@@ -78,8 +58,7 @@ export default function InventoryDashboard() {
   }, []);
 
   const handleFilterClick = (option) => {
-      console.log("Selected filter:", option);
-      setShowFilter(false);
+      setShowFilter(false);  
   };
 
    // Handle when a product card is clicked
@@ -88,8 +67,12 @@ export default function InventoryDashboard() {
   };
 
   return (
-      <div className="inventory-container">
-        {!selectedProduct ? (
+    <div className="inventory-container">
+         {productsLoading ? (
+        <p>Loading products...</p>
+      ) : productsError ? (
+        <p>Error: {productsError}</p>
+      ) : !selectedProduct ? (
           <>
             <section className="overview">
               <h2>Inventory Overview</h2>
@@ -110,7 +93,7 @@ export default function InventoryDashboard() {
                 <h2>Products</h2>
                 <div className="actions">
 
-                <button className="add-product" onClick={() => setShowModal(true)}>Add Product</button>
+                  <button className="add-product" onClick={() => setShowModal(true)}>Add Product</button>
 
                   <div className="filter-container" ref={filterRef}>
                     <button className="filter-button" onClick={() => setShowFilter(!showFilter)}>
@@ -133,11 +116,12 @@ export default function InventoryDashboard() {
               </div>
               
               <div className="product-grid scrollable">
-                {products.map((product, index) => (
-                  <ProductCard key={index} product={product} onProductClick={handleProductClick}  />
+                {products.map((product) => (
+                  <ProductCard key={product.id} product={product} onProductClick={handleProductClick}/>
                 ))}
               </div>
-              
+      
+
             </section>
           </>
         ):(
@@ -146,8 +130,18 @@ export default function InventoryDashboard() {
         )
       }
          {/* Show ProductModal when modal is open */}
-        {showModal && <ProductModal onClose={() => setShowModal(false)} />}
+        {showModal && (
+          <ProductModal 
+            onClose={() => setShowModal(false)} 
+            onProductAdded={(newProduct) => {
+              setSelectedProduct(newProduct); // 👈 open product details view
+              setShowModal(false); // 👈 close modal
+            }} 
+          />
+        )}
+
       </div>
+
     );
 }
   
