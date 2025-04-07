@@ -1,39 +1,11 @@
-// import React from 'react';
-// // import './ProductDetail.css'; // Styling for the Product Detail Modal
-
-// const ProductDetail = ({ product, onClose }) => {
-//   return (
-//     <div className="product-detail-container">
-//       <div className="product-detail-modal">
-//         <div className="modal-header">
-//           <h2>Product Details: {product.name}</h2>
-//           <button className="close-btn" onClick={onClose}>Close</button>
-//         </div>
-//         <div className="modal-body">
-//           <div className="product-detail">
-//             <img src={product.image || ""} alt={product.name} className="product-image" />
-//             <div className="details">
-//               <p>Price: ${product.price}</p>
-//               <p>Quantity: {product.quantity}</p>
-//               <p>Expiry: {product.expiry}</p>
-//               <p>Availability: {product.available}</p>
-//               {/* Add other product details here */}
-//             </div>
-//           </div>
-//         </div>
-//       </div>
-//     </div>
-//   );
-// };
-
-// export default ProductDetail;
-
-
 import React, { useState } from "react";
 import "./productDetail.css"; // Ensure you have a CSS file for styling
 
+
+
 export default function ProductDetail({ product, onClose }) {
   const back_btn = "/arrow.png";
+
 
   const [activeTab, setActiveTab] = useState("Overview"); // State to track active tab
 
@@ -73,12 +45,12 @@ export default function ProductDetail({ product, onClose }) {
 
                 <div className="product-detail">
                   <p className="info">Product Name: </p>
-                  <p>{product.name}</p>
+                  <p>{product.product_name}</p>
                 </div>
 
                 <div className="product-detail">
                   <p className="info">Product ID: </p>
-                  <p>{product.ID}</p>
+                  <p>{product.id}</p>
                 </div>
 
                 <div className="product-detail">
@@ -88,7 +60,11 @@ export default function ProductDetail({ product, onClose }) {
 
                 <div className="product-detail">
                   <p className="info">Expiry Date: </p>
-                  <p>{product.expiry}</p>
+                  {
+                    product.expired_date || 
+                    (product.lots && product.lots.length > 0 && product.lots[0].expired_date) || 
+                    'N/A'
+                  }
                 </div>
 
                 <div className="product-detail">
@@ -135,30 +111,6 @@ export default function ProductDetail({ product, onClose }) {
                 </section>
               </div>
             </section>
-
-            {/* <section className="tab-content-store-list">
-              
- <h3 className="sticky-heading">Stock Locations</h3>
-              <table className="stock-table">
-                <thead>
-                  <tr>
-                    <th className="stores">Store Name</th>
-                    <th className="stock-detail">Stock at hand</th>
-                  </tr>
-                </thead>
-                <tbody className="scrollable-tbody">
-                  {stockData.map((row, idx) => (
-                    <tr key={idx}>
-                      <td className="stores">{row.storeName}</td>
-                      <td>{row.stock}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              
-             
-     
-            </section> */}
 
             <section className="tab-content-store-list">
               <h3 className="sticky-heading">Stock Locations</h3>
