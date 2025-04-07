@@ -3,8 +3,11 @@ import BarcodeScannerComponent from "react-qr-barcode-scanner";
 import "./productModal.css";
 import CategoryForm from "./categoryform";
 import { useApi } from "../../ApiContext.jsx";
+import { useNavigate } from "react-router-dom";
 
-export default function ProductModal({ onClose }) {
+export default function ProductModal({ onClose, onProductAdded }) {
+  const navigate = useNavigate();
+
   const { categories, addProduct } = useApi();
   const [selectedCategory, setSelectedCategory] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false); // State for modal visibility
@@ -193,10 +196,25 @@ export default function ProductModal({ onClose }) {
     }
   }, [wholesaleGstIncluded, wholesaleGstExcluded, gstRetailIncluded, gstRetailExcluded, formData.lots[0].wholesale_selling_price, formData.lots[0].retail_selling_price]);
   
-
   const handleSubmit = async (e) => {
     e.preventDefault();
-    await addProduct(formData, selectedCategory, selectedUnit, attributes, wholesaleDiscounts, retailDiscounts);
+
+    try {
+      const newProduct = await addProduct(
+        formData,
+        selectedCategory,
+        selectedUnit,
+        attributes,
+        wholesaleDiscounts,
+        retailDiscounts
+      );
+
+      if (newProduct && onProductAdded) {
+        onProductAdded(newProduct);
+      }
+    } catch (err) {
+      console.error("Failed to handle product submit:", err);
+    }
   };
 
   return (

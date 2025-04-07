@@ -7,14 +7,19 @@ const ApiContext = createContext();
 // Provider Component
 export const ApiProvider = ({ children }) => {
   const [categories, setCategories] = useState([]);
+  const [productsLoading, setProductsLoading] = useState(false);
+  const [productsError, setProductsError] = useState(null);
+  const [products, setProducts] = useState([]);
 
   // Get Tenant from Cookies
   const tenantDomain = Cookies.get("tenant"); 
   const accessToken = Cookies.get("access_token");
   const csrfToken = Cookies.get("csrftoken");
 
-  const categoriesUrl = `http://${tenantDomain}.localhost:8000/api/categories/`;
-  const productsUrl = `http://${tenantDomain}.localhost:8000/api/products/`;
+  const apiBase = `http://${tenantDomain}.localhost:8000/api`;
+  const categoriesUrl = `${apiBase}/categories/`;
+  const productsUrl = `${apiBase}/products/`;
+
   // Fetch Categories from API
   const fetchCategories = async () => {
     try {
@@ -115,26 +120,105 @@ export const ApiProvider = ({ children }) => {
       }
   
       console.log("✅ Product successfully added!");
+      const created = await response.json();
+
+    // ✅ Now fetch full product by ID
+    const fullResponse = await fetch(`${productsUrl}${created.id}/`, {
+      headers: {
+        "Authorization": `Bearer ${accessToken}`,
+      },
+    });
+
+    if (!fullResponse.ok) {
+      throw new Error("Failed to fetch full product details");
+    }
+
+    const fullProduct = await fullResponse.json();
+    return fullProduct;
+
     } catch (error) {
       console.error("❌ Error adding product:", error);
     }
   };
 
   //Trying to upload image
+
+  //Fetching product from the API
+  const fetchProducts = async () => {
+    const productsListUrl = `${productsUrl}list/`;
+
+    setProductsLoading(true);
+    setProductsError(null); // Reset error before request
   
- 
+    try {
+      const response = await fetch(productsListUrl, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRFToken": csrfToken,
+          "Authorization": `Bearer ${accessToken}`,
+        },
+      });
+  
+      if (!response.ok) {
+        const errorResponse = await response.json();
+        throw new Error(errorResponse?.detail || response.statusText);
+      }
+      const data = await response.json();
+      setProducts(
+        data.map(product => ({
+          id: product.id,
+          product_name: product.product_name,
+          category: product.category,
+          image: product.image_url || "", // fallback if no image
+          available: product.available_status || "In-Stock", // adjust based on backend
+          quantity: product.lots?.reduce((sum, lot) => sum + lot.quantity, 0) || 0,
+          price: product.lots?.[0]?.retail_selling_price || 0, // or calculate average
+          expired_date: product.lots?.[0]?.expired_date || null,
+          threshold_value: product.threshold_value,
+        }))
+      );
+      return data;
+    } catch (error) {
+      console.error("❌ Error fetching products:", error);
+      setProducts([]);
+      
+      setProductsError(error.message || "Unknown error occurred.");
+      return [];
+    } finally {
+      setProductsLoading(false);
+    }
+    
+  };
+  
   // Load Categories when Component Mounts
   useEffect(() => {
     if (tenantDomain) fetchCategories();
-    console.log(categories)
   }, [tenantDomain]); // Fetch only when tenant is available
-
+  
   return (
-    <ApiContext.Provider value={{ categories, addCategory, addProduct }}>
+    <ApiContext.Provider 
+      value={{ 
+        categories, 
+        addCategory, 
+        addProduct,
+        fetchProducts,
+        products,
+        productsLoading,
+        productsError,
+      }}
+    >
       {children}
     </ApiContext.Provider>
   );
 };
 
 // Custom Hook to Use API Context
-export const useApi = () => useContext(ApiContext);
+// export const useApi = () => useContext(ApiContext);
+
+function useApi() {
+  return useContext(ApiContext);
+}
+
+export { useApi };
+
