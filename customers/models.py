@@ -103,7 +103,7 @@ class User(AbstractBaseUser):
     is_staff = models.BooleanField(default=False)
     is_superuser = models.BooleanField(default=False)
 
-    domain = models.ForeignKey(Client, on_delete=models.CASCADE, related_name="users")
+    domain = models.ForeignKey(Client, on_delete=models.CASCADE, related_name="users", null=False)
     created_on = models.DateTimeField(auto_now_add=True)
 
     objects = CustomUserManager()

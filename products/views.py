@@ -16,6 +16,12 @@ class ProductViewSet(viewsets.ModelViewSet):
     serializer_class = ProductSerializer
     permission_classes = [IsAuthenticated]  # Enforces authentication
     
+    def get_serializer_context(self):
+        # Add 'request' to the context so it can be used in the serializer
+        context = super().get_serializer_context()
+        context.update({"request": self.request})
+        return context
+    
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -56,6 +62,13 @@ class ProductViewSet(viewsets.ModelViewSet):
             return Response(lot_serializer.data, status=status.HTTP_201_CREATED)
         return Response(lot_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+    # Custom action for image upload
+    @action(detail=True, methods=['post'], url_path='upload-image')
+    def upload_image(self, request, pk=None):
+        product = self.get_object()
+        product.product_image = request.FILES.get("product_image")
+        product.save()
+        return Response({"status": "image uploaded", "image_url": product.product_image.url}, status=status.HTTP_200_OK)
 
 class CategoryViewSet(viewsets.ModelViewSet):
     queryset = Category.objects.all()

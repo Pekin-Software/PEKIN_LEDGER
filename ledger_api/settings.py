@@ -52,7 +52,6 @@ TENANT_APPS = [
     "records",
     "stores",
     "sales",
-    
 ]
 
 INSTALLED_APPS = SHARED_APPS + [app for app in TENANT_APPS if app not in SHARED_APPS]
@@ -124,6 +123,11 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'ledger_api.wsgi.application'
 
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
+
+# In production, you can configure Django to use a cloud storage solution for handling media files.
+# DEFAULT_FILE_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
 
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases

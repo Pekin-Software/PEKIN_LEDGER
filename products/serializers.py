@@ -88,11 +88,18 @@ class ProductSerializer(serializers.ModelSerializer):
     attributes = ProductAttributeSerializer(many=True)
     lots = LotSerializer(many=True)
     category = serializers.PrimaryKeyRelatedField(queryset=Category.objects.all())
+    image_url = serializers.SerializerMethodField()
 
     class Meta:
         model = Product
         exclude = ['tenant']  
 
+    def get_image_url(self, obj):
+        request = self.context.get('request')
+        if obj.product_image:
+            return request.build_absolute_uri(obj.product_image.url)
+        return None
+    
     def create(self, validated_data):
         attributes_data = validated_data.pop('attributes', [])
         lots_data = validated_data.pop('lots', [])

@@ -13,6 +13,12 @@
     "username": "ed",
     "password": "esk@1998"
 }
+
+{
+    "username": "ledger",
+    "password": "2025"
+}
+
 {
     "username": "subaccountuser",
     "password": "1234"
@@ -56,7 +62,7 @@ domain.save()
 
 
 requirement.txt
-npm install @fontsource/roboto
+npm install @fontsource/roboto country-list world-countries react-datepicker lucide-react
 npm install country-list
 npm install libphonenumber-js
 npm install world-countries libphonenumber-js
@@ -77,33 +83,5 @@ pip install djangorestframework-simplejwt
 pip install django-cors-headers
 pip install psycopg2
 pip install Pillow
-
-
-
-    {
-        "name": "Product 1",
-        "category": 1,
-        "description": "This is a description for Product 1.",
-        "price": 19.99,
-        "threshold_value": 10,
-        "attributes": [
-            { "name": "Color", "value": "Red" },
-            { "name": "Size", "value": "M" }
-        ],
-        "lots": [
-            {
-                "quantity": 50,
-                "expired_date": "2025-12-31",
-                "wholesale_purchase_price": 12.00,
-                "retail_purchase_price": 15.00,
-                "wholesale_selling_price": 18.00,
-                "retail_selling_price": 22.00,
-                "wholesale_discount_price": [1],
-                "retail_discount_price": [2]
-            }
-        ]
-    }
-    
-
 
  
