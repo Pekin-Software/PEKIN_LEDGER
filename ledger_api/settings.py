@@ -148,7 +148,7 @@ MEDIA_ROOT = BASE_DIR / 'media'
 # }
 DATABASES = {
     'default': dj_database_url.config(
-        default=config('postgresql://pekin_ledger_db_user:sMFSJknQrLbOHAflHuKYXo4WDHkB1r6q@dpg-d0hc5t24d50c73bdcskg-a.ohio-postgres.render.com/pekin_ledger_db')
+        default=config('DATABASE_URL')
     )
 }
 
