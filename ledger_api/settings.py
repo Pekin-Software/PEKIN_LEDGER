@@ -11,6 +11,9 @@ https://docs.djangoproject.com/en/5.1/ref/settings/
 """
 
 from pathlib import Path
+import os
+import dj_database_url
+from decouple import config
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -23,9 +26,10 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = 'django-insecure-_!gb#a3e10(y9ur98k1h(pc2(w&+2*+v+jj*86s#lj2#)$xb86'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+#DEBUG = True
+DEBUG = config('DEBUG', default=False, cast=bool)
 
-ALLOWED_HOSTS = ["localhost", "testing.localhost"]
+ALLOWED_HOSTS = ["localhost", ".localhost"]
 
 
 # Application definition
@@ -132,16 +136,22 @@ MEDIA_ROOT = BASE_DIR / 'media'
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
 
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django_tenants.postgresql_backend',  # Use django-tenants PostgreSQL backend
+#         'NAME': 'pekin_ledger_db',
+#         'USER': 'pekin',
+#         'PASSWORD': 'ledger@2025',
+#         'HOST': 'localhost',  # or your DB host
+#         'PORT': '5432',
+#     }
+# }
 DATABASES = {
-    'default': {
-        'ENGINE': 'django_tenants.postgresql_backend',  # Use django-tenants PostgreSQL backend
-        'NAME': 'pekin_ledger_db',
-        'USER': 'pekin',
-        'PASSWORD': 'ledger@2025',
-        'HOST': 'localhost',  # or your DB host
-        'PORT': '5432',
-    }
+    'default': dj_database_url.config(
+        default=config('DATABASE_URL')
+    )
 }
+
 DATABASE_ROUTERS = (
    'django_tenants.routers.TenantSyncRouter',
 )
@@ -186,7 +196,7 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/5.1/howto/static-files/
 
 STATIC_URL = 'static/'
-
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
 
