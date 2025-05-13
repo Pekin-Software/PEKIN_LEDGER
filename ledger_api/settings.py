@@ -26,10 +26,10 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = 'django-insecure-_!gb#a3e10(y9ur98k1h(pc2(w&+2*+v+jj*86s#lj2#)$xb86'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-#DEBUG = True
+# DEBUG = False
 DEBUG = config('DEBUG', default=False, cast=bool)
 
-ALLOWED_HOSTS = ["localhost", ".localhost"]
+ALLOWED_HOSTS = ["https://pekin-ledger.onrender.com", "localhost", ".localhost"]
 
 
 # Application definition
@@ -148,7 +148,7 @@ MEDIA_ROOT = BASE_DIR / 'media'
 # }
 DATABASES = {
     'default': dj_database_url.config(
-        default=config('DATABASE_URL')
+        default=config('postgresql://pekin_ledger_db_user:sMFSJknQrLbOHAflHuKYXo4WDHkB1r6q@dpg-d0hc5t24d50c73bdcskg-a.ohio-postgres.render.com/pekin_ledger_db')
     )
 }
 
