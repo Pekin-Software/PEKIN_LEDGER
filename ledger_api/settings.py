@@ -29,7 +29,8 @@ SECRET_KEY = 'django-insecure-_!gb#a3e10(y9ur98k1h(pc2(w&+2*+v+jj*86s#lj2#)$xb86
 # DEBUG = False
 DEBUG = config('DEBUG', default=False, cast=bool)
 
-ALLOWED_HOSTS = ["https://pekin-ledger.onrender.com", "localhost", ".localhost"]
+# ALLOWED_HOSTS = ["https://pekin-ledger.onrender.com", "localhost", ".localhost"]
+ALLOWED_HOSTS = ['.onrender.com', 'pekin-ledger.onrender.com']
 
 
 # Application definition
