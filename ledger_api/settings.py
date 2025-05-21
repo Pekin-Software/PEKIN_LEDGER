@@ -34,7 +34,6 @@ ALLOWED_HOSTS = ['.onrender.com', 'pekin-ledger.onrender.com']
 
 
 # Application definition
-
 SHARED_APPS = [
     'django_tenants',
     'customers',
