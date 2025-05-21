@@ -146,9 +146,17 @@ MEDIA_ROOT = BASE_DIR / 'media'
 #         'PORT': '5432',
 #     }
 # }
+# DATABASES = {
+#     'default': dj_database_url.config(
+#         default=config('DATABASE_URL')
+#     )
+# }
+
 DATABASES = {
     'default': dj_database_url.config(
-        default=config('DATABASE_URL')
+        default=config('DATABASE_URL'),
+        conn_max_age=600,
+        engine='django_tenants.postgresql_backend'
     )
 }
 
