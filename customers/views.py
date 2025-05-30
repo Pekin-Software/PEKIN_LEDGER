@@ -5,7 +5,7 @@ from .models import Domain, User, Client
 from .serializers import UserSerializer
 from django.contrib.auth import authenticate
 from rest_framework.decorators import action
-from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.tokens import RefreshToken, TokenError
 from django.shortcuts import render
 from django.http import JsonResponse
 from django_tenants.utils import schema_context
@@ -14,6 +14,8 @@ import logging
 import os
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
+from django.conf import settings
+import traceback
 
 logger = logging.getLogger(__name__)
 class IsAdminUser(permissions.BasePermission):
@@ -74,132 +76,246 @@ class UserViewSet(viewsets.ModelViewSet):
 
 def index(request):
     return(HttpResponse("<h1>Public</h1>"))
+# class LoginViewSet(viewsets.ViewSet):
 
+#     @method_decorator(csrf_exempt) 
+#     @action(detail=False, methods=["post"])
+#     # def login(self, request):
+#     #     username = request.data.get("username")
+#     #     password = request.data.get("password")
+
+#     #     if not username or not password:
+#     #         return Response({"error": "Username and password are required."}, status=status.HTTP_400_BAD_REQUEST)
+
+#     #     logger.info(f"Login attempt for user: {username}")
+
+#     #     # Authenticate user
+#     #     user = authenticate(request, username=username, password=password)
+        
+#     #     if user is None:
+#     #         logger.warning(f"Authentication failed for username: {username}")
+#     #         return Response({"error": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED)
+#     #     else:
+#     #         logger.warning(f"Authentication Successful for username: {username}")
+
+#     #     logger.info(f"User {username} authenticated successfully")
+
+#     #     # Generate JWT tokens
+#     #     refresh = RefreshToken.for_user(user)
+#     #     access_token = str(refresh.access_token)
+
+#     #     # Ensure user has a valid tenant domain
+#     #     tenant_domain = None
+#     #     try:
+#     #         tenant_domain = Domain.objects.get(tenant=user.domain).domain
+#     #     except Domain.DoesNotExist:
+#     #         logger.error(f"Domain not found for tenant: {user.domain}")
+#     #         return Response({"error": "Tenant domain not found"}, status=status.HTTP_400_BAD_REQUEST)
+
+#     #     logger.info(f"Login successful for user: {username}, Tenant Domain: {tenant_domain}")
+
+#     #     # response_data = {
+#     #     #     "role": user.position,
+#     #     #     "tenant_domain": tenant_domain,
+#     #     #     "user": user.username,
+#     #     #     "access_token": access_token,
+#     #     #     "refresh_token": str(refresh)
+#     #     # }
+
+#     #     # return Response(response_data, status=status.HTTP_200_OK)
+        
+#     #     response_data = {
+#     #         "role": user.position,
+#     #         "tenant_domain": tenant_domain,  # Tenant subdomain
+#     #         "user": user.username,
+#     #         "access_token": access_token, 
+#     #     }
+
+#     #     # Create the JsonResponse
+#     #     response = Response(response_data, status=status.HTTP_200_OK)
+
+#     #     # Set secure cookies for JWT tokens
+#     #     response.set_cookie(
+#     #         'access_token', access_token, 
+#     #         httponly=True, 
+#     #         secure=False,        # Only sent over HTTPS
+#     #         samesite='None',
+#     #         # samesite='Lax',  # Prevents CSRF by restricting cookies to same-site requests
+#     #         path='/'            # Cookie is available throughout the domain
+#     #     )
+
+#     #     response.set_cookie(
+#     #         'refresh_token', str(refresh), 
+#     #         httponly=True, 
+#     #         secure=False,        # Only sent over HTTPS
+#     #         samesite='None',
+#     #         # samesite='Lax',  # Prevents CSRF by restricting cookies to same-site requests
+#     #         path='/'
+#     #     )
+    
+#     #     # Return the response
+#     #     return response
+    
+#     @method_decorator(csrf_exempt) 
+#     @action(detail=False, methods=["post"])
+#     def login(self, request):
+#         try:
+#             username = request.data.get("username")
+#             password = request.data.get("password")
+
+#             if not username or not password:
+#                 return Response({"error": "Username and password are required."}, status=status.HTTP_400_BAD_REQUEST)
+
+#             logger.info(f"Login attempt for user: {username}")
+
+#             user = authenticate(request, username=username, password=password)
+            
+#             if user is None:
+#                 logger.warning(f"Authentication failed for username: {username}")
+#                 return Response({"error": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED)
+
+#             logger.info(f"Authentication successful for user: {username}")
+
+#             # 🔍 Log user's domain and id before generating token
+#             logger.debug(f"User ID: {user.id}, domain: {user.domain}")
+
+#             # 🔥 This may raise if user.pk is None
+#             refresh = RefreshToken.for_user(user)
+#             access_token = str(refresh.access_token)
+
+#             # 🔍 Tenant domain lookup
+#             try:
+#                 tenant_domain = Domain.objects.get(tenant=user.domain).domain
+#             except Domain.DoesNotExist:
+#                 logger.error(f"Domain not found for tenant: {user.domain}")
+#                 return Response({"error": "Tenant domain not found"}, status=status.HTTP_400_BAD_REQUEST)
+
+#             response_data = {
+#                 "role": user.position,
+#                 "tenant_domain": tenant_domain,
+#                 "user": user.username,
+#                 "access_token": access_token,
+#             }
+
+#             response = Response(response_data, status=status.HTTP_200_OK)
+
+#             response.set_cookie('access_token', access_token, httponly=True, secure=False, samesite='None', path='/')
+#             response.set_cookie('refresh_token', str(refresh), httponly=True, secure=False, samesite='None', path='/')
+
+#             return response
+
+#         except Exception as e:
+#             import traceback
+#             logger.error(f"Login failed: {str(e)}")
+#             logger.error(traceback.format_exc())
+#             return Response({"error": "Internal server error"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
         
-#         
+#     @method_decorator(csrf_exempt)
+#     @action(detail=False, methods=["post"])
+#     def logout(self, request):
+#         refresh_token = request.COOKIES.get("refresh_token")
+        
+#         if not refresh_token:
+#             return Response({"error": "Refresh token not provided"}, status=status.HTTP_400_BAD_REQUEST)
 
-#         # Generate JWT tokens
-#         refresh = RefreshToken.for_user(user)
-#         access_token = str(refresh.access_token)
-
-#         # Fetch the tenant domain
 #         try:
-#             tenant_domain = Domain.objects.get(tenant=user.domain).domain
-#         except Domain.DoesNotExist:
-#             print(f"Domain for tenant {user.domain} not found")  # Debugging line
-#             return Response({"error": "Tenant domain not found"}, status=status.HTTP_400_BAD_REQUEST)
+#             token = RefreshToken(refresh_token)
+#             token.blacklist()  # Requires blacklist app enabled
+#         except TokenError as e:
+#             return Response({"error": f"Invalid token: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
+#         except Exception as e:
+#             return Response({"error": f"Unexpected error: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-#         response_data = {
-#             "role": user.position,
-#             "tenant_domain": tenant_domain,  # Tenant subdomain
-#             "user": user.username
-#         }
-
-#         # Create the JsonResponse
-#         response = JsonResponse(response_data)
-
-#         # Set secure cookies for JWT tokens
-#         response.set_cookie(
-#             'access_token', access_token, 
-#             httponly=True, 
-#             secure=True,        # Only sent over HTTPS
-#             samesite='Strict',  # Prevents CSRF by restricting cookies to same-site requests
-#             path='/'            # Cookie is available throughout the domain
-#         )
-
-#         response.set_cookie(
-#             'refresh_token', str(refresh), 
-#             httponly=True, 
-#             secure=True,        # Only sent over HTTPS
-#             samesite='Strict',  # Prevents CSRF by restricting cookies to same-site requests
-#             path='/'
-#         )
-
-#         # Return the response
+#         response = Response({"message": "Logout successful"}, status=status.HTTP_200_OK)
+#         response.delete_cookie("access_token", path="/")
+#         response.delete_cookie("refresh_token", path="/")
 #         return response
+
     
-
-
 class LoginViewSet(viewsets.ViewSet):
+    # Dynamic cookie settings based on DEBUG
+    # cookie_settings = {
+    #     'httponly': True,
+    #     'secure': not settings.DEBUG,
+    #     'samesite': 'None' if not settings.DEBUG else 'Lax',
+    #     'path': '/'
+    # }
 
-    @method_decorator(csrf_exempt) 
+    cookie_settings = {
+        'httponly': True,
+        'secure': False,          # Set to True if using HTTPS
+        'samesite': 'Lax',        # 'Lax' works well for localhost; use 'None' + secure=True for HTTPS cross-site
+        'path': '/',
+        # 'domain': '.localhost',   # Leading dot enables subdomain cookies (tenant1.localhost etc)
+    }
+    
+    @method_decorator(csrf_exempt)
     @action(detail=False, methods=["post"])
     def login(self, request):
-        username = request.data.get("username")
-        password = request.data.get("password")
-
-        if not username or not password:
-            return Response({"error": "Username and password are required."}, status=status.HTTP_400_BAD_REQUEST)
-
-        logger.info(f"Login attempt for user: {username}")
-
-        # Authenticate user
-        user = authenticate(request, username=username, password=password)
-        
-        if user is None:
-            logger.warning(f"Authentication failed for username: {username}")
-            return Response({"error": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED)
-        else:
-            logger.warning(f"Authentication Successful for username: {username}")
-
-        logger.info(f"User {username} authenticated successfully")
-
-        # Generate JWT tokens
-        refresh = RefreshToken.for_user(user)
-        access_token = str(refresh.access_token)
-
-        # Ensure user has a valid tenant domain
-        tenant_domain = None
         try:
-            tenant_domain = Domain.objects.get(tenant=user.domain).domain
-        except Domain.DoesNotExist:
-            logger.error(f"Domain not found for tenant: {user.domain}")
-            return Response({"error": "Tenant domain not found"}, status=status.HTTP_400_BAD_REQUEST)
+            username = request.data.get("username")
+            password = request.data.get("password")
 
-        logger.info(f"Login successful for user: {username}, Tenant Domain: {tenant_domain}")
+            if not username or not password:
+                return Response({"error": "Username and password are required."}, status=status.HTTP_400_BAD_REQUEST)
 
-        # response_data = {
-        #     "role": user.position,
-        #     "tenant_domain": tenant_domain,
-        #     "user": user.username,
-        #     "access_token": access_token,
-        #     "refresh_token": str(refresh)
-        # }
+            logger.info(f"Login attempt for user: {username}")
 
-        # return Response(response_data, status=status.HTTP_200_OK)
-        
-        response_data = {
-            "role": user.position,
-            "tenant_domain": tenant_domain,  # Tenant subdomain
-            "user": user.username,
-            "access_token": access_token, 
-        }
+            user = authenticate(request, username=username, password=password)
+            if user is None:
+                logger.warning(f"Authentication failed for username: {username}")
+                return Response({"error": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED)
 
-        # Create the JsonResponse
-        response = Response(response_data, status=status.HTTP_200_OK)
+            logger.info(f"Authentication successful for user: {username}")
 
-        # Set secure cookies for JWT tokens
-        response.set_cookie(
-            'access_token', access_token, 
-            httponly=True, 
-            secure=False,        # Only sent over HTTPS
-            samesite='None',
-            # samesite='Lax',  # Prevents CSRF by restricting cookies to same-site requests
-            path='/'            # Cookie is available throughout the domain
-        )
+            refresh = RefreshToken.for_user(user)
+            refresh["tenant"] = str(user.domain.id)
+            access_token = str(refresh.access_token)
 
-        response.set_cookie(
-            'refresh_token', str(refresh), 
-            httponly=True, 
-            secure=False,        # Only sent over HTTPS
-            samesite='None',
-            # samesite='Lax',  # Prevents CSRF by restricting cookies to same-site requests
-            path='/'
-        )
-    
-        # Return the response
+            try:
+                tenant_domain = Domain.objects.get(tenant=user.domain).domain
+            except Domain.DoesNotExist:
+                logger.error(f"Domain not found for tenant: {user.domain}")
+                return Response({"error": "Tenant domain not found"}, status=status.HTTP_400_BAD_REQUEST)
+
+            response_data = {
+                "role": user.position,
+                "tenant_domain": tenant_domain,
+                "user": user.username,
+                "access_token": access_token,
+            }
+
+            response = Response(response_data, status=status.HTTP_200_OK)
+            response.set_cookie('access_token', access_token, **self.cookie_settings)
+            response.set_cookie('refresh_token', str(refresh), **self.cookie_settings)
+
+            return response
+
+        except Exception as e:
+            logger.error(f"Login failed: {str(e)}")
+            logger.error(traceback.format_exc())
+            return Response({"error": "Internal server error"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @method_decorator(csrf_exempt)
+    @action(detail=False, methods=["post"])
+    def logout(self, request):
+        refresh_token = request.COOKIES.get("refresh_token")
+
+        if not refresh_token:
+            return Response({"error": "Refresh token not provided"}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            token = RefreshToken(refresh_token)
+            token.blacklist()
+        except TokenError as e:
+            return Response({"error": f"Invalid token: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({"error": f"Unexpected error: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        response = Response({"message": "Logout successful"}, status=status.HTTP_200_OK)
+        response.delete_cookie("access_token", path='/')
+        response.delete_cookie("refresh_token", path='/')
         return response
-    
-    
+ 
     

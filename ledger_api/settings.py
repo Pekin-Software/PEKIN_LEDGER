@@ -29,8 +29,8 @@ SECRET_KEY = 'django-insecure-_!gb#a3e10(y9ur98k1h(pc2(w&+2*+v+jj*86s#lj2#)$xb86
 # DEBUG = False
 DEBUG = config('DEBUG', default=False, cast=bool)
 
-# ALLOWED_HOSTS = ["https://pekin-ledger.onrender.com", "localhost", ".localhost"]
-ALLOWED_HOSTS = ['.onrender.com', 'pekin-ledger.onrender.com']
+# ALLOWED_HOSTS = ["https://pekin-ledger.onrender.com", ]
+ALLOWED_HOSTS = ['.onrender.com', 'pekin-ledger.onrender.com', "localhost", ".localhost"]
 
 
 # Application definition
@@ -47,6 +47,7 @@ SHARED_APPS = [
     'django.contrib.staticfiles',
     'rest_framework',
     'rest_framework_simplejwt',
+    'rest_framework_simplejwt.token_blacklist',
     "corsheaders",
 ]
 TENANT_APPS = [
@@ -61,6 +62,7 @@ TENANT_APPS = [
 INSTALLED_APPS = SHARED_APPS + [app for app in TENANT_APPS if app not in SHARED_APPS]
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
+        'customers.authentication.TenantAwareJWTAuthentication',
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     ),
 }
@@ -70,8 +72,9 @@ from datetime import timedelta
 SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(days=1),
     "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
-    "ROTATE_REFRESH_TOKENS": False,
-    "BLACKLIST_AFTER_ROTATION": False,
+    "AUTH_TOKEN_CLASSES": ("rest_framework_simplejwt.tokens.AccessToken",),
+    "ROTATE_REFRESH_TOKENS": True,
+    "BLACKLIST_AFTER_ROTATION": True,
     "ALGORITHM": "HS256",
     "SIGNING_KEY": SECRET_KEY,  # Use Django's secret key
 }
@@ -136,29 +139,25 @@ MEDIA_ROOT = BASE_DIR / 'media'
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
 
-# DATABASES = {
-#     'default': {
-#         'ENGINE': 'django_tenants.postgresql_backend',  # Use django-tenants PostgreSQL backend
-#         'NAME': 'pekin_ledger_db',
-#         'USER': 'pekin',
-#         'PASSWORD': 'ledger@2025',
-#         'HOST': 'localhost',  # or your DB host
-#         'PORT': '5432',
-#     }
-# }
+DATABASES = {
+    'default': {
+        'ENGINE': 'django_tenants.postgresql_backend',  # Use django-tenants PostgreSQL backend
+        'NAME': 'pekin_ledger_db',
+        'USER': 'pekin',
+        'PASSWORD': 'ledger@2025',
+        'HOST': 'localhost',  # or your DB host
+        'PORT': '5432',
+    }
+}
+
+
 # DATABASES = {
 #     'default': dj_database_url.config(
-#         default=config('DATABASE_URL')
+#         default=config('DATABASE_URL'),
+#         conn_max_age=600,
+#         engine='django_tenants.postgresql_backend'
 #     )
 # }
-
-DATABASES = {
-    'default': dj_database_url.config(
-        default=config('DATABASE_URL'),
-        conn_max_age=600,
-        engine='django_tenants.postgresql_backend'
-    )
-}
 
 DATABASE_ROUTERS = (
    'django_tenants.routers.TenantSyncRouter',
