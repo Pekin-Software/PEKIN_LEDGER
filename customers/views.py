@@ -235,13 +235,6 @@ def index(request):
     
 class LoginViewSet(viewsets.ViewSet):
     # Dynamic cookie settings based on DEBUG
-    # cookie_settings = {
-    #     'httponly': True,
-    #     'secure': not settings.DEBUG,
-    #     'samesite': 'None' if not settings.DEBUG else 'Lax',
-    #     'path': '/'
-    # }
-
     cookie_settings = {
         'httponly': True,
         'secure': True,          # Set to True if using HTTPS

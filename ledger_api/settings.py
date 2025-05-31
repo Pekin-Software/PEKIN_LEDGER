@@ -114,7 +114,7 @@ CSRF_COOKIE_SECURE = True
 SESSION_COOKIE_SAMESITE = 'None'
 CSRF_COOKIE_SAMESITE = 'None'
 
-SESSION_COOKIE_HTTPONLY = True  # Good to protect against JS access
+# SESSION_COOKIE_HTTPONLY = True  # Good to protect against JS access
 
 
 CSRF_TRUSTED_ORIGINS = ["http://localhost:5173", "https://pekinledger.netlify.app"]
