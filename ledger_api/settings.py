@@ -30,7 +30,7 @@ SECRET_KEY = 'django-insecure-_!gb#a3e10(y9ur98k1h(pc2(w&+2*+v+jj*86s#lj2#)$xb86
 DEBUG = config('DEBUG', default=False, cast=bool)
 
 # ALLOWED_HOSTS = ["https://pekin-ledger.onrender.com", ]
-ALLOWED_HOSTS = ['.onrender.com', 'pekin-ledger.onrender.com', "localhost", ".localhost"]
+ALLOWED_HOSTS = ['pekin-ledger.onrender.com', '.pekin-ledger.onrender.com', "localhost", ".localhost"]
 
 
 # Application definition
@@ -97,7 +97,8 @@ ROOT_URLCONF = 'ledger_api.urls'
 CORS_ALLOW_CREDENTIALS = True
 # CORS_ALLOW_ALL_ORIGINS = False
 CORS_ALLOWED_ORIGINS = [
-    "http://localhost:5173",
+    "http://localhost:5173", 
+    "https://pekinledger.netlify.app",
 ]
 CORS_ALLOW_HEADERS = [
     "content-type",
@@ -105,12 +106,12 @@ CORS_ALLOW_HEADERS = [
     "x-csrftoken",
 ]
 
-SESSION_COOKIE_SECURE = False  # Set to True in production with HTTPS
-CSRF_COOKIE_SECURE = False  # Set to True in production with HTTPS
+SESSION_COOKIE_SECURE = True  # Set to True in production with HTTPS
+CSRF_COOKIE_SECURE = True  # Set to True in production with HTTPS
 SESSION_COOKIE_SAMESITE = 'Lax'  # Allow cross-site cookies for API usage
 SESSION_COOKIE_HTTPONLY = True
 
-CSRF_TRUSTED_ORIGINS = ["http://localhost:5173"]
+CSRF_TRUSTED_ORIGINS = ["http://localhost:5173", "https://pekinledger.netlify.app"]
 
 TEMPLATES = [
     {
@@ -139,25 +140,25 @@ MEDIA_ROOT = BASE_DIR / 'media'
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django_tenants.postgresql_backend',  # Use django-tenants PostgreSQL backend
-        'NAME': 'pekin_ledger_db',
-        'USER': 'pekin',
-        'PASSWORD': 'ledger@2025',
-        'HOST': 'localhost',  # or your DB host
-        'PORT': '5432',
-    }
-}
-
-
 # DATABASES = {
-#     'default': dj_database_url.config(
-#         default=config('DATABASE_URL'),
-#         conn_max_age=600,
-#         engine='django_tenants.postgresql_backend'
-#     )
+#     'default': {
+#         'ENGINE': 'django_tenants.postgresql_backend',  # Use django-tenants PostgreSQL backend
+#         'NAME': 'pekin_ledger_db',
+#         'USER': 'pekin',
+#         'PASSWORD': 'ledger@2025',
+#         'HOST': 'localhost',  # or your DB host
+#         'PORT': '5432',
+#     }
 # }
+
+
+DATABASES = {
+    'default': dj_database_url.config(
+        default=config('DATABASE_URL'),
+        conn_max_age=600,
+        engine='django_tenants.postgresql_backend'
+    )
+}
 
 DATABASE_ROUTERS = (
    'django_tenants.routers.TenantSyncRouter',
