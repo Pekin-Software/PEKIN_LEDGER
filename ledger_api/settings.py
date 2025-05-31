@@ -95,7 +95,7 @@ MIDDLEWARE.insert(1, 'corsheaders.middleware.CorsMiddleware')
 ROOT_URLCONF = 'ledger_api.urls'
 
 CORS_ALLOW_CREDENTIALS = True
-# CORS_ALLOW_ALL_ORIGINS = False
+
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173", 
     "https://pekinledger.netlify.app",
@@ -106,10 +106,16 @@ CORS_ALLOW_HEADERS = [
     "x-csrftoken",
 ]
 
-SESSION_COOKIE_SECURE = True  # Set to True in production with HTTPS
-CSRF_COOKIE_SECURE = True  # Set to True in production with HTTPS
-SESSION_COOKIE_SAMESITE = 'Lax'  # Allow cross-site cookies for API usage
-SESSION_COOKIE_HTTPONLY = True
+# Required to send cookies in cross-site requests
+SESSION_COOKIE_SECURE = True
+CSRF_COOKIE_SECURE = True
+
+# Allow cross-site cookies explicitly
+SESSION_COOKIE_SAMESITE = 'None'
+CSRF_COOKIE_SAMESITE = 'None'
+
+SESSION_COOKIE_HTTPONLY = True  # Good to protect against JS access
+
 
 CSRF_TRUSTED_ORIGINS = ["http://localhost:5173", "https://pekinledger.netlify.app"]
 

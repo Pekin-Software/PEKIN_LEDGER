@@ -244,8 +244,8 @@ class LoginViewSet(viewsets.ViewSet):
 
     cookie_settings = {
         'httponly': True,
-        'secure': False,          # Set to True if using HTTPS
-        'samesite': 'Lax',        # 'Lax' works well for localhost; use 'None' + secure=True for HTTPS cross-site
+        'secure': True,          # Set to True if using HTTPS
+        'samesite': 'None',        # 'Lax' works well for localhost; use 'None' + secure=True for HTTPS cross-site
         'path': '/',
         # 'domain': '.localhost',   # Leading dot enables subdomain cookies (tenant1.localhost etc)
     }
