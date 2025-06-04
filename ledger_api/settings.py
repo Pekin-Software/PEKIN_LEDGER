@@ -90,13 +90,13 @@ MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
-    'django.middleware.csrf.CsrfViewMiddleware',
+    # 'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     # 'django_hosts.middleware.HostsResponseMiddleware',
 ]
-MIDDLEWARE.insert(1, 'corsheaders.middleware.CorsMiddleware')
+
 ROOT_URLCONF = 'ledger_api.urls'
 
 CORS_ALLOW_CREDENTIALS = True
@@ -115,23 +115,23 @@ CORS_ALLOWED_ORIGIN_REGEXES = [
 CORS_ALLOW_HEADERS = [
     "content-type",
     "authorization",
-    "x-csrftoken",
+    # "x-csrftoken",
 ]
 
 # Required to send cookies in cross-site requests
-SESSION_COOKIE_SECURE = True
-CSRF_COOKIE_SECURE = True
+# SESSION_COOKIE_SECURE = True
+# CSRF_COOKIE_SECURE = True
 
 # Allow cross-site cookies explicitly
-SESSION_COOKIE_SAMESITE = 'None'
-CSRF_COOKIE_SAMESITE = 'None'
+# SESSION_COOKIE_SAMESITE = 'None'
+# CSRF_COOKIE_SAMESITE = 'None'
 
 # SESSION_COOKIE_HTTPONLY = True  # Good to protect against JS access
 
 
-CSRF_TRUSTED_ORIGINS = ["http://localhost:5173",
-                        "https://pekingledger.store","https://*.pekingledger.store",
-                        "https://app.pekingledger.store", ]
+# CSRF_TRUSTED_ORIGINS = ["http://localhost:5173",
+#                         "https://pekingledger.store","https://*.pekingledger.store",
+#                         "https://app.pekingledger.store", ]
 
 TEMPLATES = [
     {
