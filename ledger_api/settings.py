@@ -102,15 +102,15 @@ ROOT_URLCONF = 'ledger_api.urls'
 CORS_ALLOW_CREDENTIALS = True
 
 CORS_ALLOWED_ORIGINS = [
-    "http://localhost:5173", 
-    "https://pekinledger.netlify.app",
-    "https://www.pekingledger.store",
+    "http://localhost:5173",
+    "https://pekingledger.store",
     "https://app.pekingledger.store",
 ]
-# CORS_ALLOWED_ORIGIN_REGEXES = [
-#     r"^https://.*\.pekingledger\.store$",
-#     r"^https://pekingledger\.store$",
-# ]
+
+CORS_ALLOWED_ORIGIN_REGEXES = [
+    r"^https://.*\.pekingledger\.store$",
+    r"^https://pekingledger\.store$",
+]
 
 CORS_ALLOW_HEADERS = [
     "content-type",
