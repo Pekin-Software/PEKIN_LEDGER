@@ -30,7 +30,7 @@ SECRET_KEY = 'django-insecure-_!gb#a3e10(y9ur98k1h(pc2(w&+2*+v+jj*86s#lj2#)$xb86
 DEBUG = config('DEBUG', default=False, cast=bool)
 
 # ALLOWED_HOSTS = ["https://pekin-ledger.onrender.com", ]
-ALLOWED_HOSTS = ['pekin-ledger.onrender.com', '.pekin-ledger.onrender.com', "localhost", ".localhost"]
+ALLOWED_HOSTS = ['pekin-ledger.onrender.com', ".pekingledger.store", "localhost", ".localhost"]
 
 
 # Application definition
@@ -99,7 +99,7 @@ CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173", 
     "https://pekinledger.netlify.app",
-    "https://pekingledger.store", 
+    "https://www.pekingledger.store",
 ]
 CORS_ALLOW_HEADERS = [
     "content-type",
@@ -118,7 +118,7 @@ CSRF_COOKIE_SAMESITE = 'None'
 # SESSION_COOKIE_HTTPONLY = True  # Good to protect against JS access
 
 
-CSRF_TRUSTED_ORIGINS = ["http://localhost:5173", "https://pekinledger.netlify.app","https://pekingledger.store", ]
+CSRF_TRUSTED_ORIGINS = ["http://localhost:5173", "https://pekinledger.netlify.app","https://www.pekingledger.store", ]
 
 TEMPLATES = [
     {
