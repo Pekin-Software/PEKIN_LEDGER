@@ -99,6 +99,7 @@ CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173", 
     "https://pekinledger.netlify.app",
+    "https://pekingledger.store", 
 ]
 CORS_ALLOW_HEADERS = [
     "content-type",
@@ -117,7 +118,7 @@ CSRF_COOKIE_SAMESITE = 'None'
 # SESSION_COOKIE_HTTPONLY = True  # Good to protect against JS access
 
 
-CSRF_TRUSTED_ORIGINS = ["http://localhost:5173", "https://pekinledger.netlify.app"]
+CSRF_TRUSTED_ORIGINS = ["http://localhost:5173", "https://pekinledger.netlify.app","https://pekingledger.store", ]
 
 TEMPLATES = [
     {
