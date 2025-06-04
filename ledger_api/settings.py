@@ -103,6 +103,11 @@ CORS_ALLOWED_ORIGINS = [
     "https://www.pekingledger.store",
     "https://app.pekingledger.store",
 ]
+CORS_ALLOWED_ORIGIN_REGEXES = [
+    r"^https://.*\.pekingledger\.store$",
+    r"^https://pekingledger\.store$",
+]
+
 CORS_ALLOW_HEADERS = [
     "content-type",
     "authorization",
