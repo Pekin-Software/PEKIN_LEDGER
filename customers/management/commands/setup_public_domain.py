@@ -14,7 +14,7 @@ class Command(BaseCommand):
             self.stdout.write("Public tenant already exists.")
 
         domain, created = Domain.objects.get_or_create(
-            domain="pekin-ledger.onrender.com",
+            domain="pekingledger.store",
             tenant=tenant,
             defaults={"is_primary": True}
         )
