@@ -236,12 +236,11 @@ def index(request):
 class LoginViewSet(viewsets.ViewSet):
     # Dynamic cookie settings based on DEBUG
     cookie_settings = {
-        'httponly': True,
-        'secure': True,          # Set to True if using HTTPS
-        'samesite': 'None',        # 'Lax' works well for localhost; use 'None' + secure=True for HTTPS cross-site
-        'path': '/',
-        # 'domain': '.localhost',   # Leading dot enables subdomain cookies (tenant1.localhost etc)
-    }
+            'path': '/',
+            'domain': '.pekingledger.store',
+            'samesite': 'None',
+            'secure': True,
+        }
     
     @method_decorator(csrf_exempt)
     @action(detail=False, methods=["post"])
@@ -290,11 +289,39 @@ class LoginViewSet(viewsets.ViewSet):
             logger.error(traceback.format_exc())
             return Response({"error": "Internal server error"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+    # @method_decorator(csrf_exempt)
+    # @action(detail=False, methods=["post"])
+    # def logout(self, request):
+    #     refresh_token = request.COOKIES.get("refresh_token")
+
+    #     if not refresh_token:
+    #         return Response({"error": "Refresh token not provided"}, status=status.HTTP_400_BAD_REQUEST)
+
+    #     try:
+    #         token = RefreshToken(refresh_token)
+    #         token.blacklist()
+    #     except TokenError as e:
+    #         return Response({"error": f"Invalid token: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
+    #     except Exception as e:
+    #         return Response({"error": f"Unexpected error: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    #     response = Response({"message": "Logout successful"}, status=status.HTTP_200_OK)
+    #     response.delete_cookie("access_token", path='/')
+    #     response.delete_cookie("refresh_token", path='/')
+    #     return response
+    
     @method_decorator(csrf_exempt)
     @action(detail=False, methods=["post"])
     def logout(self, request):
         refresh_token = request.COOKIES.get("refresh_token")
 
+        cookie_settings = {
+            'path': '/',
+            'domain': '.pekingledger.store',
+            'samesite': 'None',
+            'secure': True,
+        }
+        
         if not refresh_token:
             return Response({"error": "Refresh token not provided"}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -307,8 +334,8 @@ class LoginViewSet(viewsets.ViewSet):
             return Response({"error": f"Unexpected error: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
         response = Response({"message": "Logout successful"}, status=status.HTTP_200_OK)
-        response.delete_cookie("access_token", path='/')
-        response.delete_cookie("refresh_token", path='/')
+        response.delete_cookie("access_token", **cookie_settings)
+        response.delete_cookie("refresh_token", **cookie_settings)
         return response
- 
-    
+
+        
