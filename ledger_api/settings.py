@@ -143,25 +143,26 @@ MEDIA_ROOT = BASE_DIR / 'media'
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
 
+DATABASES = {
+    'default': {
+        'ENGINE': 'django_tenants.postgresql_backend',  # Use django-tenants PostgreSQL backend
+        'NAME': 'pekin_ledger_db',
+        'USER': 'pekin',
+        'PASSWORD': 'ledger@2025',
+        'HOST': 'localhost',  # or your DB host
+        'PORT': '5432',
+    }
+}
+
+
 # DATABASES = {
-#     'default': {
-#         'ENGINE': 'django_tenants.postgresql_backend',  # Use django-tenants PostgreSQL backend
-#         'NAME': 'pekin_ledger_db',
-#         'USER': 'pekin',
-#         'PASSWORD': 'ledger@2025',
-#         'HOST': 'localhost',  # or your DB host
-#         'PORT': '5432',
-#     }
+#     'default': dj_database_url.config(
+#         default=config('DATABASE_URL'),
+#         conn_max_age=600,
+#         engine='django_tenants.postgresql_backend'
+#     )
 # }
 
-
-DATABASES = {
-    'default': dj_database_url.config(
-        default=config('DATABASE_URL'),
-        conn_max_age=600,
-        engine='django_tenants.postgresql_backend'
-    )
-}
 
 DATABASE_ROUTERS = (
    'django_tenants.routers.TenantSyncRouter',
