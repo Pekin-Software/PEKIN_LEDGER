@@ -9,7 +9,6 @@ router = DefaultRouter()
 router.register(r'create', UserViewSet)
 router.register(r'auth', LoginViewSet, basename='auth')
 
-
 # The API URLs are now determined automatically by the router.
 urlpatterns = [
     path('admin/', admin.site.urls),

@@ -51,28 +51,10 @@ domain.save()
   "store_name": "Branch2"
 }
 
-
-requirement.txt
-npm install @fontsource/roboto country-list world-countries react-datepicker lucide-react
-npm install country-list
-npm install libphonenumber-js
-npm install world-countries libphonenumber-js
-npm install react-datepicker
-npm install react-router-dom
-npm install lucide-react
-npm install js-cookie
-npm install react-qr-barcode-scanner
-
-
-pip install django-extensions
-pip install Werkzeug
-pip install pyOpenSSL
-pip install django
-pip install django_tenants
-pip install djangorestframework
-pip install djangorestframework-simplejwt
-pip install django-cors-headers
-pip install psycopg2
-pip install Pillow
-
-frontend url pekinledger.netlify.app 
+{
+  "store_name": "Pekin Market",
+  "address": "15th Street",
+  "city": "Paynesville",
+  "country": "LIberia",
+  "phone_number": "+231775441329"
+}
