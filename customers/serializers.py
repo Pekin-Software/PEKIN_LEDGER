@@ -57,3 +57,17 @@ class UserSerializer(serializers.ModelSerializer):
 
         return user
 
+class StaffSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = [
+            "first_name",
+            "last_name",
+            "address",
+            "city",
+            "phone1",
+            "phone2",
+            "email",
+            "position",
+        ]
+

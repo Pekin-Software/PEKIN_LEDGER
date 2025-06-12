@@ -1,9 +1,11 @@
 from rest_framework.response import Response
 from rest_framework import viewsets, status, permissions
 from customers.models import Domain, User
-from customers.serializers import UserSerializer
+from customers.serializers import UserSerializer, StaffSerializer
 from rest_framework.decorators import action
 from django_tenants.utils import schema_context
+from django.db.models import Q
+from stores.models import Employee
 class SubaccountViewSet(viewsets.ModelViewSet):
     """
     Handles user listing and subaccount creation in the tenant schema.
@@ -18,34 +20,6 @@ class SubaccountViewSet(viewsets.ModelViewSet):
             return User.objects.filter(domain=user.domain)  # Admin sees all subaccounts
         return User.objects.filter(id=user.id)  # Others only see themselves
  
-    # @action(detail=False, methods=['post'], url_path='add_users')
-    # def create_subaccount(self, request):
-    #     """Allows Admins to create subaccounts within their tenant."""
-    #     user = request.user
-
-    #     # Only Admins can create subaccounts
-    #     if not user.can_create_subaccount():
-    #         return Response({"error": "Only Admins can create subaccounts."}, status=status.HTTP_403_FORBIDDEN)
-
-    #     # Ensure the user has a domain (Admin must have a domain)
-    #     if user.domain is None:
-    #         return Response({"error": "User does not belong to any domain."}, status=status.HTTP_400_BAD_REQUEST)
-        
-    #     request.data["domain"] = user.domain.id  # Ensure subaccount is linked to the Admin's tenant
-        
-    #     # Pass the request context to the serializer to ensure the subaccount gets the correct domain
-    #     with schema_context(user.domain.schema_name):
-           
-
-    #         # Now pass 'request' context to serializer so it can reference the domain and admin user
-    #         serializer = UserSerializer(data=request.data, context={'request': request})
-
-    #         # Validate and save the subaccount
-    #         serializer.is_valid(raise_exception=True)
-    #         serializer.save()
-
-    #     return Response({"message": "Subaccount created successfully", "user": serializer.data}, status=status.HTTP_201_CREATED)
-    
     @action(detail=False, methods=['post'], url_path='add_users')
     def create_subaccount(self, request):
         user = request.user
@@ -80,16 +54,20 @@ class SubaccountViewSet(viewsets.ModelViewSet):
                 "trace": traceback.format_exc()
             }, status=500)
 
-
-    @action(detail=False, methods=['get'], url_path='staff') #working
+    @action(detail=False, methods=['get'], url_path='staff')  # working
     def list_subaccounts(self, request):
-        """Allows Admins to view all subaccounts in their tenant."""
+        """
+        Allows Admins to view all subaccounts in their tenant,
+        excluding other Admins.
+        """
         user = request.user
 
         if not user.can_create_subaccount():
             return Response({"error": "Only Admins can view staff."}, status=status.HTTP_403_FORBIDDEN)
 
-        users = User.objects.filter(domain=user.domain)
+        # Filter non-admin users in the same domain
+        users = User.objects.filter(domain=user.domain).exclude(position='Admin')
+
         serializer = UserSerializer(users, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
@@ -130,3 +108,29 @@ class SubaccountViewSet(viewsets.ModelViewSet):
             serializer.is_valid(raise_exception=True)
             serializer.save()
             return Response({"message": "Profile updated successfully", "user": serializer.data}, status=status.HTTP_200_OK)
+        
+    @action(detail=False, methods=['get'], url_path='staff-unassigned')
+    def list_unassigned_subaccounts(self, request):
+        """
+        List users in the same domain who are not assigned to any store.
+        Only accessible by Admins.
+        """
+        user = request.user
+
+        if not user.can_create_subaccount():
+            return Response({"error": "Only Admins can view staff."}, status=status.HTTP_403_FORBIDDEN)
+
+        # Get user IDs already assigned to stores
+        assigned_user_ids = Employee.objects.values_list('user_id', flat=True)
+
+        # Exclude Admins and users already assigned to any store
+        unassigned_users = User.objects.filter(
+            domain=user.domain
+        ).exclude(
+            id__in=assigned_user_ids
+        ).exclude(
+            position='Admin'
+        )
+
+        serializer = StaffSerializer(unassigned_users, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)

@@ -1,58 +1,3 @@
-# from rest_framework import generics
-# from rest_framework.response import Response
-# from django.db import connection
-# from customers.models import Client, User # Import your tenant model
-# from .serializers import StoreSerializer
-# from rest_framework import status, viewsets
-# from rest_framework.decorators import action
-# from .models import Store, Employee
-# from django.db import transaction
-# from rest_framework import permissions
-# from rest_framework.permissions import IsAuthenticated
-
-# class IsAdminUser(permissions.BasePermission):
-#     def has_permission(self, request, view):
-#         return request.user.is_authenticated and request.user.position == 'Admin'
-
-
-#     @action(detail=True, methods=['post'])
-#     def add_staff(self, request, pk=None):
-#         """Assign or reassign one or more users to a store."""
-#         store = Store.objects.get(id=pk)
-#         usernames = request.data.get('usernames', [])  # List of usernames
-#         position = request.data.get('position')  # Position (Manager, Cashier, etc.)
-
-#         if not usernames:
-#             return Response({"error": "No usernames provided"}, status=status.HTTP_400_BAD_REQUEST)
-
-#         # Ensure store has only one manager
-#         if position == 'Manager' and Employee.objects.filter(store=store, user__position='Manager').exists():
-#             return Response({"error": "This store already has a manager."}, status=status.HTTP_400_BAD_REQUEST)
-
-#         # Process each user to assign or reassign to the store
-#         with transaction.atomic():
-#             for username in usernames:
-#                 try:
-#                     user = User.objects.get(username=username)
-#                 except User.DoesNotExist:
-#                     return Response({"error": f"User {username} not found"}, status=status.HTTP_404_NOT_FOUND)
-
-#                 # Check if the user is already assigned to any store
-#                 existing_employee = Employee.objects.filter(user=user, store=store).first()
-#                 if existing_employee:
-#                     # User is already assigned to the store, so just update their record if needed
-#                     existing_employee.save()  # Reassign logic (could add more fields to modify)
-#                 else:
-#                     # If the user was assigned to another store, remove them from that store first
-#                     if Employee.objects.filter(user=user).exists():
-#                         # Remove the user from any store they were previously assigned to
-#                         old_store_employee = Employee.objects.filter(user=user).first()
-#                         old_store_employee.delete()  # Remove the previous assignment
-                    
-#                     # Assign the user to the new store
-#                     Employee.objects.create(user=user, store=store)
-
-#         return Response({"message": "Users have been assigned or reassigned to the store."}, status=status.HTTP_200_OK)
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -60,6 +5,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.exceptions import ValidationError
 from django.db import transaction, connection
 from customers.models import Client, User
+from customers.serializers import UserSerializer, StaffSerializer
 from .models import Store, Employee
 from .serializers import StoreSerializer
 from rest_framework import permissions
@@ -73,8 +19,6 @@ class IsStoreAssigned(permissions.BasePermission):
         if request.user.position == 'Admin':
             return True
         return Employee.objects.filter(user=request.user, store=obj).exists()
-# permission_classes = [IsAuthenticated, IsStoreAssigned]
-
 class StoreViewSet(viewsets.ModelViewSet):
     queryset = Store.objects.all()
     serializer_class = StoreSerializer
@@ -109,40 +53,6 @@ class StoreViewSet(viewsets.ModelViewSet):
             except Client.DoesNotExist:
                 return Response({"error": "Tenant not found"}, status=status.HTTP_400_BAD_REQUEST)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-    # Add or reassign staff
-    # @action(detail=True, methods=['post'], url_path='add-staff')
-    # def add_staff(self, request, pk=None):
-    #     try:
-    #         store = self.get_object()
-    #     except Store.DoesNotExist:
-    #         return Response({"error": "Store not found"}, status=status.HTTP_404_NOT_FOUND)
-
-    #     usernames = request.data.get('usernames', [])
-    #     position = request.data.get('position')
-
-    #     if not usernames:
-    #         return Response({"error": "No usernames provided"}, status=status.HTTP_400_BAD_REQUEST)
-
-    #     if position == 'Manager' and Employee.objects.filter(store=store, user__position='Manager').exists():
-    #         return Response({"error": "This store already has a manager."}, status=status.HTTP_400_BAD_REQUEST)
-
-    #     with transaction.atomic():
-    #         for username in usernames:
-    #             try:
-    #                 user = User.objects.get(username=username)
-    #             except User.DoesNotExist:
-    #                 return Response({"error": f"User {username} not found"}, status=status.HTTP_404_NOT_FOUND)
-
-    #             existing_employee = Employee.objects.filter(user=user, store=store).first()
-    #             if existing_employee:
-    #                 existing_employee.position = position
-    #                 existing_employee.save()
-    #             else:
-    #                 Employee.objects.filter(user=user).delete()
-    #                 Employee.objects.create(user=user, store=store, position=position)
-
-    #     return Response({"message": "Users have been assigned or reassigned to the store."}, status=status.HTTP_200_OK)
 
     @action(detail=True, methods=['post'], url_path='add-staff')
     def add_staff(self, request, pk=None):
@@ -179,3 +89,37 @@ class StoreViewSet(viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
         self.perform_update(serializer)
         return Response(serializer.data)
+
+        # List staff assigned to a store
+    @action(detail=True, methods=['get'], url_path='list-staff')
+    def list_staff(self, request, pk=None):
+        try:
+            store = Store.objects.get(pk=pk)
+        except Store.DoesNotExist:
+            return Response({"error": "Store not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        employees = Employee.objects.filter(store=store).select_related('user')
+        staff_users = [e.user for e in employees]
+        serializer = StaffSerializer(staff_users, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    # Remove a user from a store
+    @action(detail=True, methods=['delete'], url_path='remove-staff')
+    def remove_staff(self, request, pk=None):
+        username = request.data.get('username')
+        if not username:
+            return Response({"error": "Username is required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            store = Store.objects.get(pk=pk)
+            user = User.objects.get(username=username)
+            employee = Employee.objects.get(user=user, store=store)
+        except Store.DoesNotExist:
+            return Response({"error": "Store not found"}, status=status.HTTP_404_NOT_FOUND)
+        except User.DoesNotExist:
+            return Response({"error": "User not found"}, status=status.HTTP_404_NOT_FOUND)
+        except Employee.DoesNotExist:
+            return Response({"error": "User is not assigned to this store"}, status=status.HTTP_400_BAD_REQUEST)
+
+        employee.delete()
+        return Response({"message": f"User '{username}' has been removed from the store."}, status=status.HTTP_200_OK)
