@@ -98,8 +98,8 @@ class CategoryViewSet(viewsets.ModelViewSet):
             raise PermissionDenied("Access denied.")
         return obj
     def get_queryset(self):
-        return Category.objects.filter(products__tenant=self.request.tenant).distinct()
-
+        return Category.objects.all()
+    
     @transaction.atomic
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
@@ -119,6 +119,8 @@ class CategoryViewSet(viewsets.ModelViewSet):
         categories = self.get_queryset()
         serializer = self.get_serializer(categories, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
+    
+    
     
     @action(detail=True, methods=['put', 'patch'], url_path='update')
     @transaction.atomic
