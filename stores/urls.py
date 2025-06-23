@@ -18,5 +18,5 @@ urlpatterns = [
 # | PATCH  | `/store/{id}/`           | Partial update     |
 # | POST   | `/store/create-store/`   | Custom create      |
 # | POST   | `/store/{id}/add-staff/` | Add/reassign staff |
-# | GET    | `/stores/{id}/list-staff/`   | List users assigned to a store                             |
-# | DELETE | `/stores/{id}/remove-staff/` | Remove a user from a store (requires `"username"` in body) |
+# | GET    | `/store/{id}/list-staff/`   | List users assigned to a store                             |
+# | DELETE | `/store/{id}/remove-staff/` | Remove a user from a store (requires `"username"` in body) |

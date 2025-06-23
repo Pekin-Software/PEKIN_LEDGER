@@ -58,3 +58,34 @@ domain.save()
   "country": "LIberia",
   "phone_number": "+231775441329"
 }
+
+
+{
+  "product_name": "Example Product",
+  "category": 1,
+  "unit": "pcs",
+  "threshold_value": 10,
+  "attributes": [
+    {
+      "name": "Color",
+      "value": "Red"
+    },
+    {
+      "name": "Size",
+      "value": "Medium"
+    }
+  ],
+  "lots": [
+    {
+      "purchase_date": "2025-06-01",
+      "quantity": 100,
+      "expired_date": "2026-06-01",
+      "wholesale_purchase_price": 50.0,
+      "retail_purchase_price": 70.0,
+      "wholesale_quantity": 10.0,
+      "wholesale_selling_price": 60.0,
+      "retail_selling_price": 90.0
+    }
+  ]
+}
+
