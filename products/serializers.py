@@ -2,9 +2,10 @@ from rest_framework import serializers
 from .models import Product, ProductAttribute, Category, Lot
 
 class CategorySerializer(serializers.ModelSerializer):
+    id = serializers.IntegerField(read_only=True)
     class Meta:
         model = Category
-        fields = ['name']
+        fields = ['id','name']
 
 class LotSerializer(serializers.ModelSerializer):
 
