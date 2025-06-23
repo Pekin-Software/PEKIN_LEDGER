@@ -9,7 +9,6 @@ class Product(models.Model):
     slug = models.SlugField(unique=True, blank=True, max_length=300)
     category = models.ForeignKey('Category', on_delete=models.CASCADE, related_name='products')
     unit = models.CharField(max_length=50, null=True, blank=True)
-    description = models.TextField()
     threshold_value = models.PositiveIntegerField(default=0)
     product_image = models.ImageField(upload_to='product_images/', null=True, blank=True)
     created_at = models.DateTimeField(default=timezone.now)
@@ -34,7 +33,13 @@ class Product(models.Model):
 
     def save(self, *args, **kwargs):
         if not self.slug:
-            self.slug = slugify(self.product_name)
+            base_slug = slugify(self.product_name)
+            slug = base_slug
+            counter = 1
+            while Product.objects.filter(slug=slug).exists():
+                slug = f"{base_slug}-{counter}"
+                counter += 1
+            self.slug = slug
         super().save(*args, **kwargs)
 
 
@@ -66,11 +71,7 @@ class Lot(models.Model):
     retail_purchase_price = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)  # Price per unit when bought individually
     wholesale_selling_price = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)  # Selling price for bulk buyers
     retail_selling_price = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)  # Selling price for individual customers
-
-    # Discounts (Multiple discounts can be added)
-    wholesale_discount_price = models.ManyToManyField('Discount', related_name="wholesale_discounts", blank=True)
-    retail_discount_price = models.ManyToManyField('Discount', related_name="retail_discounts", blank=True)
-
+    wholesale_quantity = models.PositiveIntegerField(default=0) 
     # Timestamps
     purchase_date = models.DateField(null=True, blank=True)  # Date of purchase
     created_at = models.DateTimeField(default=timezone.now)
@@ -105,12 +106,4 @@ class Lot(models.Model):
         if not self.sku:  # Generate SKU if not set
             self.sku = self.generate_sku()
         super().save(*args, **kwargs)
-    
-class Discount(models.Model):
-    lot = models.ForeignKey(Lot, related_name="discounts", on_delete=models.CASCADE, null=True)
-    name = models.CharField(max_length=100)  # e.g., "Black Friday Sale"
-    value = models.DecimalField(max_digits=10, decimal_places=2)  # Percentage or fixed amount
-
-    def __str__(self):
-        return f"{self.name} ({self.value})"
-
+ 
