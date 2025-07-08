@@ -19,7 +19,7 @@ class Product(models.Model):
     
     @property
     def stock_status(self):
-        active_lots = self.lots.filter(expired_date__gte=timezone.now())  # Ignore expired lots
+        active_lots = self.lots.filter(expired_date__gte=timezone.now().date())  # Ignore expired lots
         total_stock = sum(lot.quantity for lot in active_lots)
         return "In Stock" if total_stock > 0 else "Out of Stock"
 
@@ -92,7 +92,7 @@ class Lot(models.Model):
 
     @property
     def stock_status(self):
-        if self.expired_date and self.expired_date < timezone.now():
+        if self.expired_date and self.expired_date < timezone.now().date():
             return "Expired"
         elif self.quantity > 0:
             return "Available"
