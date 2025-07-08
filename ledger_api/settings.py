@@ -27,7 +27,7 @@ SECRET_KEY = 'django-insecure-_!gb#a3e10(y9ur98k1h(pc2(w&+2*+v+jj*86s#lj2#)$xb86
 
 # SECURITY WARNING: don't run with debug turned on in production!
 # DEBUG = False
-DEBUG = config('DEBUG', default=True, cast=bool)
+DEBUG = config('DEBUG', default=False, cast=bool)
 
 # ALLOWED_HOSTS = ["https://pekin-ledger.onrender.com", ]
 ALLOWED_HOSTS = [
@@ -143,25 +143,25 @@ MEDIA_ROOT = BASE_DIR / 'media'
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django_tenants.postgresql_backend',  # Use django-tenants PostgreSQL backend
-        'NAME': 'pekin_ledger_db',
-        'USER': 'pekin',
-        'PASSWORD': 'ledger@2025',
-        'HOST': 'localhost',  # or your DB host
-        'PORT': '5432',
-    }
-}
-
-
 # DATABASES = {
-#     'default': dj_database_url.config(
-#         default=config('DATABASE_URL'),
-#         conn_max_age=600,
-#         engine='django_tenants.postgresql_backend'
-#     )
+#     'default': {
+#         'ENGINE': 'django_tenants.postgresql_backend',  # Use django-tenants PostgreSQL backend
+#         'NAME': 'pekin_ledger_db',
+#         'USER': 'pekin',
+#         'PASSWORD': 'ledger@2025',
+#         'HOST': 'localhost',  # or your DB host
+#         'PORT': '5432',
+#     }
 # }
+
+
+DATABASES = {
+    'default': dj_database_url.config(
+        default=config('DATABASE_URL'),
+        conn_max_age=600,
+        engine='django_tenants.postgresql_backend'
+    )
+}
 
 
 DATABASE_ROUTERS = (
