@@ -12,7 +12,8 @@ class LotSerializer(serializers.ModelSerializer):
     class Meta:
         model = Lot
         fields = ['quantity', 'purchase_date', 'wholesale_quantity', 'wholesale_purchase_price', 
-                  'retail_purchase_price', 'wholesale_selling_price', 'retail_selling_price',
+                  'retail_purchase_price', 'wholesale_selling_price', 'retail_selling_price', 
+                  'expired_date', 'stock_status',
                   ]
 
 class ProductAttributeSerializer(serializers.ModelSerializer):
@@ -30,6 +31,10 @@ class ProductSerializer(serializers.ModelSerializer):
     lots = LotSerializer(many=True)
     category = serializers.PrimaryKeyRelatedField(queryset=Category.objects.all())
     image_url = serializers.SerializerMethodField()
+
+    #Check product status
+    stock_status = serializers.ReadOnlyField()
+    total_quantity = serializers.SerializerMethodField()
 
     class Meta:
         model = Product
