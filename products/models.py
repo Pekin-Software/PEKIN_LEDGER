@@ -16,20 +16,6 @@ class Product(models.Model):
     
     def __str__(self):
         return self.product_name
-    
-    @property
-    def stock_status(self):
-        active_lots = self.lots.filter(expired_date__gte=timezone.now().date())  # Ignore expired lots
-        total_stock = sum(lot.quantity for lot in active_lots)
-        return "In Stock" if total_stock > 0 else "Out of Stock"
-
-    def total_quantity(self):
-        """Calculates the total quantity of the product across all lots."""
-        return sum(lot.quantity for lot in self.lots.all())
-    
-    def is_low_stock(self):
-        """Checks if the stock level is below the threshold."""
-        return self.total_quantity() <= self.threshold_value
 
     def save(self, *args, **kwargs):
         if not self.slug:
@@ -95,9 +81,11 @@ class Lot(models.Model):
         if self.expired_date and self.expired_date < timezone.now().date():
             return "Expired"
         elif self.quantity > 0:
-            return "Available"
+            return "In Stock"
         else:
             return "Out of Stock"
+
+
     def is_low_stock(self):
         """Checks if the lot's stock is below the threshold."""
         return self.quantity <= self.product.threshold_value
