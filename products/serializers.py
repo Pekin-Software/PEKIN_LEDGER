@@ -11,9 +11,9 @@ class LotSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Lot
-        fields = ['quantity', 'purchase_date', 'wholesale_quantity', 'wholesale_purchase_price', 
+        fields = ['sku', 'quantity', 'purchase_date', 'wholesale_quantity', 'wholesale_purchase_price', 
                   'retail_purchase_price', 'wholesale_selling_price', 'retail_selling_price', 
-                  'expired_date', 'stock_status',
+                  'expired_date',
                   ]
 
 class ProductAttributeSerializer(serializers.ModelSerializer):
@@ -32,7 +32,9 @@ class ProductSerializer(serializers.ModelSerializer):
     category = serializers.PrimaryKeyRelatedField(queryset=Category.objects.all())
     image_url = serializers.SerializerMethodField()
 
-   
+    total_quantity = serializers.SerializerMethodField()
+    stock_status = serializers.SerializerMethodField()
+
     def get_lots(self, obj):
         # Return lots ordered by expired_date descending (newest first)
         sorted_lots = obj.lots.order_by('-expired_date')
@@ -47,6 +49,12 @@ class ProductSerializer(serializers.ModelSerializer):
         if obj.product_image:
             return request.build_absolute_uri(obj.product_image.url)
         return None
+    
+    def get_total_quantity(self, obj):
+        return obj.total_quantity
+    
+    def get_stock_status(self, obj):
+        return obj.stock_status
 
     def create(self, validated_data):
         attributes_data = validated_data.pop('attributes', [])

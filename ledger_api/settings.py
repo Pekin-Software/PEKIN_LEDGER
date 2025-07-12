@@ -81,7 +81,7 @@ SIMPLE_JWT = {
     "ROTATE_REFRESH_TOKENS": True,
     "BLACKLIST_AFTER_ROTATION": True,
     "ALGORITHM": "HS256",
-    "SIGNING_KEY": SECRET_KEY,  # Use Django's secret key
+    "SIGNING_KEY": SECRET_KEY, 
 }
 
 MIDDLEWARE = [
@@ -143,25 +143,25 @@ MEDIA_ROOT = BASE_DIR / 'media'
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
 
-# DATABASES = {
-#     'default': {
-#         'ENGINE': 'django_tenants.postgresql_backend',  # Use django-tenants PostgreSQL backend
-#         'NAME': 'pekin_ledger_db',
-#         'USER': 'pekin',
-#         'PASSWORD': 'ledger@2025',
-#         'HOST': 'localhost',  # or your DB host
-#         'PORT': '5432',
-#     }
-# }
-
-
 DATABASES = {
-    'default': dj_database_url.config(
-        default=config('DATABASE_URL'),
-        conn_max_age=600,
-        engine='django_tenants.postgresql_backend'
-    )
+    'default': {
+        'ENGINE': 'django_tenants.postgresql_backend',  
+        'NAME': 'pekin_ledger_db',
+        'USER': 'pekin',
+        'PASSWORD': 'ledger@2025',
+        'HOST': 'localhost', 
+        'PORT': '5432',
+    }
 }
+
+
+# DATABASES = {
+#     'default': dj_database_url.config(
+#         default=config('DATABASE_URL'),
+#         conn_max_age=600,
+#         engine='django_tenants.postgresql_backend'
+#     )
+# }
 
 
 DATABASE_ROUTERS = (
