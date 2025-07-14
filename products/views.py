@@ -178,10 +178,10 @@ class LotViewSet(viewsets.ModelViewSet):
     
     def get_object(self):
         obj = super().get_object()
-        if obj.tenant != self.request.tenant:
+        if obj.product.tenant != self.request.tenant:
             raise PermissionDenied("Access denied.")
         return obj
-    
+
     def get_queryset(self):
         return Lot.objects.filter(product__tenant=self.request.tenant).order_by('-created_at')
 
