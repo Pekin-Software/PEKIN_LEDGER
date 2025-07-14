@@ -20,3 +20,6 @@ urlpatterns = [
 # | POST   | `/store/{id}/add-staff/` | Add/reassign staff |
 # | GET    | `/store/{id}/list-staff/`   | List users assigned to a store                             |
 # | DELETE | `/store/{id}/remove-staff/` | Remove a user from a store (requires `"username"` in body) |
+# POST	/store/{pk}/add-inventory/	Add or update inventory in the store's warehouse	Authenticated + Admin
+# GET	/store/{pk}/inventory/	List inventory for a store's warehouse	Authenticated + Admin/Assigned Staff
+# GET	/store/main-inventory/	List inventory for a general warehouse	Authenticated + Admin
