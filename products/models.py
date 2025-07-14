@@ -3,6 +3,8 @@ from django.utils.text import slugify
 from customers.models import Client
 from django.utils import timezone 
 import uuid
+from django.db.models import Sum
+
 class Product(models.Model):
     tenant = models.ForeignKey(Client, on_delete=models.CASCADE, related_name="products")
     product_name = models.CharField(max_length=255)
@@ -20,28 +22,7 @@ class Product(models.Model):
     @property
     def total_quantity(self):
         return self.lots.aggregate(total=models.Sum('quantity'))['total'] or 0
-
-    @property
-    def stock_status(self):
-        today = timezone.now().date()
-        lots = self.lots.all()
-
-        if not lots.exists():
-            return "Out of Stock"
-
-        unexpired_lots = [lot for lot in lots if not lot.expired_date or lot.expired_date >= today]
-        total_qty = sum(lot.quantity for lot in unexpired_lots)
-
-        if not unexpired_lots:
-            return "Expired"
-        elif total_qty == 0:
-            return "Out of Stock"
-        elif total_qty <= self.threshold_value:
-            return "Low Stock"
-        else:
-            return "In Stock"
-
-
+    
     def save(self, *args, **kwargs):
         if not self.slug:
             base_slug = slugify(self.product_name)
