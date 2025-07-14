@@ -20,7 +20,7 @@ class Command(BaseCommand):
         self.stdout.write(self.style.SUCCESS("\n✅ Finished backfilling all tenants."))
 
     def backfill_tenant_data(self, tenant):
-        User = apps.get_model('accounts', 'User')
+        User = apps.get_model('customers', 'User')
         Warehouse = apps.get_model('inventory', 'Warehouse')
         Store = apps.get_model('stores', 'Store')
         Lot = apps.get_model('inventory', 'Lot')
