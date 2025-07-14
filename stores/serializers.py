@@ -7,7 +7,7 @@ from products.models import Product, Lot
 from django.db import transaction
 from products.serializers import LotSerializer, ProductAttributeSerializer
 from django.utils import timezone
-
+from datetime import timedelta
 
 class StoreSerializer(serializers.ModelSerializer):
     class Meta:
@@ -140,9 +140,12 @@ class InventoryForStoreSerializer(serializers.ModelSerializer):
     total_quantity = serializers.SerializerMethodField()
     warehouse_type = serializers.CharField(source='warehouse.warehouse_type', read_only=True)
     
+    overview = serializers.SerializerMethodField()
+
     class Meta:
         model = Inventory
-        fields = ['id', 'product', 'quantity', 'stock_status', 'added_at', 'updated_at','total_quantity', 'warehouse_type']
+        fields = ['id', 'product', 'quantity', 'stock_status', 'added_at', 
+                  'updated_at','total_quantity', 'warehouse_type', 'overview']
 
     def get_total_quantity(self, obj):
         qty_map = self.context.get('qty_map', {})
@@ -170,3 +173,52 @@ class InventoryForStoreSerializer(serializers.ModelSerializer):
             else:
                 return "In Stock"
 
+    def get_overview(self, obj):
+        if self.context.get('include_overview', False) and self.context.get('first_item_id') == obj.id:
+            inventories = self.context.get('all_inventories', [])
+            today = timezone.now().date()
+
+            def calculate_stats(inventories_subset):
+                product_ids = set()
+                category_ids = set()
+                in_stock = 0
+                out_of_stock = 0
+                low_stock = 0
+                expiring_soon = 0
+
+                for inv in inventories_subset:
+                    product = inv.product
+                    product_ids.add(product.id)
+                    if product.category_id:
+                        category_ids.add(product.category_id)
+
+                    status = self.get_stock_status(inv)
+
+                    if status == "In Stock":
+                        in_stock += 1
+                    elif status == "Low Stock":
+                        low_stock += 1
+                    elif status == "Out of Stock":
+                        out_of_stock += 1
+
+                    if inv.lot and inv.lot.expired_date:
+                        if today < inv.lot.expired_date <= today + timedelta(days=30):
+                            expiring_soon += 1
+
+                return {
+                    "total_products": len(product_ids),
+                    "total_categories": len(category_ids),
+                    "in_stock": in_stock,
+                    "out_of_stock": out_of_stock,
+                    "low_stock": low_stock,
+                    "expiring_soon": expiring_soon,
+                }
+
+            general_inventories = [inv for inv in inventories if inv.warehouse.warehouse_type == "general"]
+            store_inventories = [inv for inv in inventories if inv.warehouse.warehouse_type != "general"]
+
+            return {
+                "general_inventory": calculate_stats(general_inventories),
+                "store_inventory": calculate_stats(store_inventories),
+            }
+        return None

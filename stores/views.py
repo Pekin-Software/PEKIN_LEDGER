@@ -367,4 +367,42 @@ class StoreViewSet(viewsets.ModelViewSet):
 
         return Response(serializer.data, status=status.HTTP_200_OK)
 
+    #Overview for Inventory
+    @action(detail=False, methods=['get'], url_path='overview', permission_classes=[IsAuthenticated])
+    def overview(self, request):
+        client = request.user.domain
+
+        # Filter inventories for this tenant only
+        queryset = Inventory.objects.select_related('product', 'warehouse', 'lot').filter(
+            product__tenant=client
+        )
+
+        all_inventories = list(queryset)
+        first_item_id = all_inventories[0].id if all_inventories else None
+
+        # Compute total quantity per product
+        total_qty_map = (
+            queryset
+            .values('product_id')
+            .annotate(total_qty=Sum('quantity'))
+        )
+        qty_map = {item['product_id']: item['total_qty'] for item in total_qty_map}
+
+        serializer = InventoryForStoreSerializer(
+            all_inventories,
+            many=True,
+            context={
+                'request': request,
+                'qty_map': qty_map,
+                'include_overview': True,
+                'all_inventories': all_inventories,
+                'first_item_id': first_item_id,
+            }
+        )
+
+        return Response({
+            "overview": serializer.data[0].get("overview") if serializer.data else {},
+        })
+
+
 
