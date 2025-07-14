@@ -85,48 +85,6 @@ class ProductViewSet(viewsets.ModelViewSet):
         product.save()
         return Response({"status": "image uploaded", "image_url": product.product_image.url}, status=status.HTTP_200_OK)
 
-    #DashBoard Summary 
-    @action(detail=False, methods=['get'], url_path='overview')
-    @transaction.atomic
-    def overview(self, request):
-        today = timezone.now().date()
-
-        products = self.get_queryset().prefetch_related('lots') 
-        categories = Category.objects.filter(products__in=products).distinct()
-
-        total_products = products.count()
-        total_categories = categories.count()
-
-        in_stock = 0
-        out_of_stock = 0
-        low_stock = 0
-        expiring_soon = 0
-
-        for product in products:
-            stock_status = product.stock_status
-            if stock_status == "In Stock":
-                in_stock += 1
-            elif stock_status == "Out of Stock":
-                out_of_stock += 1
-            elif stock_status == "Low Stock":
-                low_stock += 1
-
-            if product.lots.filter(
-                expired_date__gt=today,
-                expired_date__lte=today + timedelta(days=30)
-            ).exists():
-                expiring_soon += 1
-
-        return Response({
-            "total_products": total_products,
-            "total_categories": total_categories,
-            "top_selling": 0,  # Placeholder
-            "in_stock": in_stock,
-            "out_of_stock": out_of_stock,
-            "low_stock": low_stock,
-            "expiring_soon": expiring_soon,
-        }, status=status.HTTP_200_OK)
-
 class CategoryViewSet(viewsets.ModelViewSet):
     serializer_class = CategorySerializer
     permission_classes = [IsAuthenticated]  # Enforces authentication

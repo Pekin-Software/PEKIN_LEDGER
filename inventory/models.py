@@ -59,32 +59,6 @@ class Inventory(models.Model):
     added_at = models.DateTimeField(default=timezone.now)
     updated_at = models.DateTimeField(auto_now=True) 
 
-    @property
-    def stock_status(self):
-        today = timezone.now().date()
-        
-        # For general warehouse: stock status based on total quantity across all warehouses
-        if self.warehouse.is_general:  # Assume you mark the general warehouse with a flag
-            total_qty = Inventory.objects.filter(product=self.product).aggregate(total=Sum('quantity'))['total'] or 0
-            if total_qty <= 0:
-                return "Out of Stock"
-            elif total_qty <= self.product.threshold_value:
-                return "Low Stock"
-            else:
-                return "In Stock"
-
-        # For store warehouses: use local quantity
-        if self.lot and self.lot.expired_date and self.lot.expired_date < today:
-            return "Expired"
-
-        if self.quantity <= 0:
-            return "Out of Stock"
-        elif self.quantity <= self.product.threshold_value:
-            return "Low Stock"
-        else:
-            return "In Stock"
-    
-
     class Meta:
         unique_together = ('warehouse', 'section', 'product', 'lot')  # Prevent duplicate inventory entries
         indexes = [
