@@ -23,7 +23,7 @@ class Command(BaseCommand):
         User = apps.get_model('customers', 'User')
         Warehouse = apps.get_model('inventory', 'Warehouse')
         Store = apps.get_model('stores', 'Store')
-        Lot = apps.get_model('inventory', 'Lot')
+        Lot = apps.get_model('products', 'Lot')
         Section = apps.get_model('inventory', 'Section')
         Inventory = apps.get_model('inventory', 'Inventory')
         Product = apps.get_model('products', 'Product')
