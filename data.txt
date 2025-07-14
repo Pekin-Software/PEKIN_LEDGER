@@ -48,10 +48,6 @@ domain.save()
 
 
 {
-  "store_name": "Branch2"
-}
-
-{
   "store_name": "Pekin Market",
   "address": "15th Street",
   "city": "Paynesville",

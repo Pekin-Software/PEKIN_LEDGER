@@ -5,7 +5,7 @@ from django.contrib.auth.models import AbstractBaseUser, BaseUserManager
 from django_tenants.models import TenantMixin, DomainMixin
 from django.utils.translation import gettext_lazy as _
 from django_tenants.utils import schema_context
-
+from django.apps import apps
 
 #Functions for Validation
 def validate_name(value):
@@ -24,7 +24,6 @@ class Client(TenantMixin):
     created_on = models.DateField(auto_now_add=True)
     
     def get_domain(self):
-        # Get the domain associated with this tenant (Client)
         domain = Domain.objects.filter(tenant=self).first()
         return domain.domain if domain else None
 class Domain(DomainMixin):
@@ -77,6 +76,18 @@ class CustomUserManager(BaseUserManager):
 
             # Assign user to the created tenant
             user.domain = client
+
+            with schema_context(client.schema_name):
+                user.save(using=self._db)
+
+                # ✅ Create the default warehouse here
+                Warehouse = apps.get_model('inventory', 'Warehouse')
+                Warehouse.objects.create(
+                    tenant=client,
+                    name=f"{business_name}'s General Warehouse",
+                    location="Main Distribution Center",
+                    warehouse_type="general"
+                )
 
             # Activate schema and create tables
             with schema_context(client.schema_name):
