@@ -7,9 +7,10 @@ from django.db import transaction, connection
 from customers.models import Client, User
 from customers.serializers import UserSerializer, StaffSerializer
 from .models import Store, Employee
-from .serializers import StoreSerializer
+from inventory.models import Inventory, Warehouse
+from .serializers import StoreSerializer, AddInventorySerializer, InventoryForStoreSerializer
 from rest_framework import permissions
-
+from django.db.models import Sum, Max, F, OuterRef, Subquery
 class IsAdminUser(permissions.BasePermission):
     def has_permission(self, request, view):
         return request.user.is_authenticated and request.user.position == 'Admin'
@@ -19,6 +20,7 @@ class IsStoreAssigned(permissions.BasePermission):
         if request.user.position == 'Admin':
             return True
         return Employee.objects.filter(user=request.user, store=obj).exists()
+
 class StoreViewSet(viewsets.ModelViewSet):
     queryset = Store.objects.all()
     serializer_class = StoreSerializer
@@ -91,6 +93,7 @@ class StoreViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)
 
         # List staff assigned to a store
+    
     @action(detail=True, methods=['get'], url_path='list-staff')
     def list_staff(self, request, pk=None):
         try:
@@ -123,3 +126,245 @@ class StoreViewSet(viewsets.ModelViewSet):
 
         employee.delete()
         return Response({"message": f"User '{username}' has been removed from the store."}, status=status.HTTP_200_OK)
+    
+
+    # Add inventory (admin only)
+    # @action(detail=True, methods=['post'], url_path='add-inventory', permission_classes=[IsAdminUser])
+    # def add_inventory(self, request, pk=None):
+    #     try:
+    #         store = Store.objects.get(pk=pk)
+    #     except Store.DoesNotExist:
+    #         return Response({"error": "Store not found in this tenant."}, status=status.HTTP_404_NOT_FOUND)
+
+    #     warehouse = store.warehouses.first()
+    #     if not warehouse:
+    #         return Response({"error": "Store has no warehouse."}, status=status.HTTP_400_BAD_REQUEST)
+
+    #     # Prepare and validate inventory data without trusting store_id from client
+    #     serializer = AddInventorySerializer(
+    #         data=request.data,
+    #         context={'request': request, 'store': store, 'warehouse': warehouse}
+    #     )
+    #     serializer.is_valid(raise_exception=True)
+
+    #     serializer.save()
+
+    #     return Response({'message': 'Inventory added/updated successfully.'}, status=status.HTTP_201_CREATED)
+    
+    @action(detail=True, methods=['post'], url_path='add-inventory', permission_classes=[IsAdminUser])
+    def add_inventory(self, request, pk=None):
+        try:
+            store = Store.objects.get(pk=pk)
+        except Store.DoesNotExist:
+            return Response({"error": "Store not found in this tenant."}, status=status.HTTP_404_NOT_FOUND)
+
+        store_warehouse = store.warehouses.first()
+        if not store_warehouse:
+            return Response({"error": "Store has no warehouse."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Validate incoming data using serializer
+        serializer = AddInventorySerializer(data=request.data, context={'request': request, 'store': store, 'warehouse': store_warehouse})
+        serializer.is_valid(raise_exception=True)
+        validated_data = serializer.validated_data
+
+        # Find general warehouse for this tenant
+        general_warehouse = Warehouse.objects.filter(tenant=store.tenant, warehouse_type='general').first()
+        if not general_warehouse:
+            return Response({"error": "General warehouse not found for this tenant."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Find inventory in general warehouse
+        try:
+            general_inventory = Inventory.objects.get(
+                warehouse=general_warehouse,
+                product=validated_data['product'],
+                lot=validated_data['lot'],
+                tenant=store.tenant
+            )
+        except Inventory.DoesNotExist:
+            return Response({"error": "Inventory not found in general warehouse."}, status=status.HTTP_404_NOT_FOUND)
+
+        try:
+            # Allocate stock from general warehouse to store warehouse
+            allocated_inventory = general_inventory.allocate_to_store(store_warehouse, validated_data['quantity'])
+        except ValueError as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response({
+            'message': 'Stock allocated to store successfully.',
+            'allocated_quantity': validated_data['quantity'],
+            'store_inventory_id': allocated_inventory.id
+        }, status=status.HTTP_200_OK)
+
+    #return product from a store 
+    @action(detail=True, methods=['post'], url_path='return-inventory', permission_classes=[IsAdminUser])
+    def return_from_store(self, request, pk=None):
+        try:
+            store = Store.objects.get(pk=pk)
+        except Store.DoesNotExist:
+            return Response({"error": "Store not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        store_warehouse = store.warehouses.first()
+        if not store_warehouse:
+            return Response({"error": "Store has no warehouse."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Validate input data: expect product_id, lot_id, quantity
+        product_id = request.data.get('product_id')
+        lot_id = request.data.get('lot_id')
+        quantity = request.data.get('quantity')
+
+        if not product_id or not lot_id or not quantity:
+            return Response({"error": "product_id, lot_id, and quantity are required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            quantity = int(quantity)
+            if quantity < 1:
+                raise ValueError
+        except ValueError:
+            return Response({"error": "Quantity must be a positive integer."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Find the general warehouse
+        general_warehouse = Warehouse.objects.filter(tenant=store.tenant, warehouse_type='general').first()
+        if not general_warehouse:
+            return Response({"error": "General warehouse not found."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Get general inventory entry
+        try:
+            general_inventory = Inventory.objects.get(
+                warehouse=general_warehouse,
+                product_id=product_id,
+                lot_id=lot_id,
+                tenant=store.tenant
+            )
+        except Inventory.DoesNotExist:
+            return Response({"error": "Inventory not found in general warehouse."}, status=status.HTTP_404_NOT_FOUND)
+
+        try:
+            # Use the return_from_store method to return stock from store to general warehouse
+            store_inventory = general_inventory.return_from_store(store_warehouse, quantity)
+        except ValueError as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response({
+            "message": "Stock returned from store successfully.",
+            "returned_quantity": quantity,
+            "store_inventory_id": store_inventory.id
+        }, status=status.HTTP_200_OK)
+    
+    # List inventory for a store (admin or assigned users)
+    # @action(detail=True, methods=['get'], url_path='inventory', permission_classes=[IsAuthenticated, IsStoreAssigned])
+    # def list_inventory(self, request, pk=None):
+    #     try:
+    #         store = Store.objects.get(pk=pk)
+    #     except Store.DoesNotExist:
+    #         return Response({"error": "Store not found in this tenant."}, status=status.HTTP_404_NOT_FOUND)
+
+    #     self.check_object_permissions(request, store)  # Enforce IsStoreAssigned
+
+    #     warehouse = store.warehouses.first()
+    #     if not warehouse:
+    #         return Response({"error": "Warehouse for this store not found."}, status=status.HTTP_404_NOT_FOUND)
+
+    #     inventory_qs = Inventory.objects.filter(warehouse=warehouse)
+    #     serializer = InventoryForStoreSerializer(inventory_qs, many=True, context={'request': request})
+    #     return Response(serializer.data, status=status.HTTP_200_OK)
+
+    from django.db.models import Max, Sum, F, Subquery, OuterRef
+
+    @action(detail=True, methods=['get'], url_path='inventory', permission_classes=[IsAuthenticated, IsStoreAssigned])
+    def list_inventory(self, request, pk=None):
+        try:
+            store = Store.objects.get(pk=pk)
+        except Store.DoesNotExist:
+            return Response({"error": "Store not found in this tenant."}, status=status.HTTP_404_NOT_FOUND)
+
+        self.check_object_permissions(request, store)
+
+        # Get all warehouses for this store
+        store_warehouses = store.warehouses.all()
+        if not store_warehouses.exists():
+            return Response({"error": "No warehouse found for this store."}, status=status.HTTP_404_NOT_FOUND)
+
+        # Filter inventory for store warehouses
+        store_inventory = Inventory.objects.filter(warehouse__in=store_warehouses)
+
+        # Total quantity per product in the store
+        qty_map = (
+            store_inventory.values('product_id')
+            .annotate(total_qty=Sum('quantity'))
+        )
+        qty_map = {item['product_id']: item['total_qty'] for item in qty_map}
+
+        # Get the newest lot per product in the store (by SKU)
+        latest_inventory_subquery = store_inventory.filter(
+            product=OuterRef('product')
+        ).order_by('-lot__sku')
+
+        latest_inventory_per_product = (
+            store_inventory
+            .values('product_id')
+            .annotate(
+                latest_inventory_id=Subquery(
+                    latest_inventory_subquery.values('id')[:1]
+                )
+            )
+            .values_list('latest_inventory_id', flat=True)
+        )
+
+        # Final queryset with only one latest inventory per product
+        latest_inventories = Inventory.objects.filter(id__in=latest_inventory_per_product).select_related('product', 'lot')
+
+        serializer = InventoryForStoreSerializer(
+            latest_inventories,
+            many=True,
+            context={
+                'request': request,
+                'qty_map': qty_map,
+                'inventory_qs': store_inventory  # Pass full inventory for correct lot filtering in nested serializer
+            }
+        )
+
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+    #List Main Inventory
+    @action(detail=False, methods=['get'], url_path='main-inventory', permission_classes=[IsAuthenticated])
+    def main_inventory(self, request):
+        client = request.user.domain
+
+        warehouse = Warehouse.objects.filter(
+            tenant=client,
+            warehouse_type='general'
+        ).first()
+
+        if not warehouse:
+            return Response({"error": "General warehouse not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        # All inventory across all warehouses for total calculation
+        all_inventory_qs = Inventory.objects.filter(product__tenant=client)
+
+        # Inventory from the main warehouse (for display)
+        main_inventory_qs = Inventory.objects.filter(warehouse=warehouse)
+
+        # Calculate total quantity per product
+        total_qty_map = (
+        all_inventory_qs
+        .values('product_id')
+        .annotate(total_qty=Sum('quantity'))
+        )
+
+        qty_map = {item['product_id']: item['total_qty'] for item in total_qty_map}
+
+        # Pass qty_map to serializer context so serializer can use it
+        serializer = InventoryForStoreSerializer(
+        main_inventory_qs.distinct('product_id'),  # show products from main warehouse only
+        many=True,
+        context={
+            'request': request,
+            'inventory_qs': all_inventory_qs,  # so product.lots can access all lots across locations
+            'qty_map': qty_map
+            }
+        )
+
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
