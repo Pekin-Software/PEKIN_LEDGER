@@ -2,15 +2,20 @@ from django.db import models
 from customers.models import Client
 from products.models import Product, Lot
 from stores.models import Store
+import uuid
+from django.utils import timezone
+from django.db.models import Sum
 
 #Warehouse
 class Warehouse(models.Model):
     tenant = models.ForeignKey(Client, on_delete=models.CASCADE, related_name="warehouses")  # Link warehouse to tenant (Client)
-    warehouse_id = models.CharField(max_length=10, unique=True, editable=False)
+    warehouse_uuid = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
+    warehouse_id = models.CharField(max_length=20, unique=True, blank=True)
     name = models.CharField(max_length=100)
     location = models.CharField(max_length=255)
     warehouse_type = models.CharField(max_length=50, choices=[('general', 'General'), ('store', 'Store')])
     store = models.ForeignKey(Store, on_delete=models.CASCADE, related_name="warehouses", null=True, blank=True)  # Store warehouse linked to Store
+    
     def save(self, *args, **kwargs):
         if not self.warehouse_id:  # Only set ID if it's not already set
             last_warehouse = Warehouse.objects.filter(tenant=self.tenant).order_by('-id').first()
@@ -51,17 +56,98 @@ class Inventory(models.Model):
     product = models.ForeignKey(Product, related_name="inventories", on_delete=models.CASCADE)
     lot = models.ForeignKey(Lot, related_name="inventories", on_delete=models.CASCADE)  # Linking to a specific lot
     quantity = models.IntegerField()
+    added_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(auto_now=True) 
+
+    @property
+    def stock_status(self):
+        today = timezone.now().date()
+        
+        # For general warehouse: stock status based on total quantity across all warehouses
+        if self.warehouse.is_general:  # Assume you mark the general warehouse with a flag
+            total_qty = Inventory.objects.filter(product=self.product).aggregate(total=Sum('quantity'))['total'] or 0
+            if total_qty <= 0:
+                return "Out of Stock"
+            elif total_qty <= self.product.threshold_value:
+                return "Low Stock"
+            else:
+                return "In Stock"
+
+        # For store warehouses: use local quantity
+        if self.lot and self.lot.expired_date and self.lot.expired_date < today:
+            return "Expired"
+
+        if self.quantity <= 0:
+            return "Out of Stock"
+        elif self.quantity <= self.product.threshold_value:
+            return "Low Stock"
+        else:
+            return "In Stock"
+     
+    class Meta:
+        unique_together = ('warehouse', 'section', 'product', 'lot')  # Prevent duplicate inventory entries
+        indexes = [
+            models.Index(fields=['product', 'warehouse']),
+        ]
 
     def __str__(self):
         return f"{self.product.name} in {self.warehouse.name} (Lot {self.lot.id})"
 
-    def add_quantity(self, qty):
-        self.quantity += qty
-        self.save()
+    def allocate_to_store(self, store_warehouse, quantity):
+        if quantity > self.quantity:
+            raise ValueError("Insufficient stock to allocate")
         
-    def deduct_quantity(self, qty):
-        self.quantity -= qty
-        self.save()
+        # Deduct quantity from this inventory (general/admin warehouse)
+        self.deduct_quantity(quantity)
+
+        # Get or create inventory in the store warehouse for the same product and lot
+        section = store_warehouse.sections.first()
+        if not section:
+            section = Section.objects.create(
+                warehouse=store_warehouse,
+                name=f"{store_warehouse.name} - Default Section"
+            )
+        
+        store_inventory, created = Inventory.objects.get_or_create(
+            tenant=self.tenant,
+            warehouse=store_warehouse,
+            section=section,
+            product=self.product,
+            lot=self.lot,
+            defaults={'quantity': 0}
+        )
+        store_inventory.add_quantity(quantity)
+        return store_inventory
+
+    def return_from_store(self, store_warehouse, quantity):
+        # Find the inventory in the store warehouse
+        try:
+            store_inventory = Inventory.objects.get(
+                tenant=self.tenant,
+                warehouse=store_warehouse,
+                product=self.product,
+                lot=self.lot
+            )
+        except Inventory.DoesNotExist:
+            raise ValueError("No inventory found in store warehouse to return")
+
+        if quantity > store_inventory.quantity:
+            raise ValueError("Insufficient stock in store to return")
+
+        # Deduct quantity from store warehouse
+        store_inventory.deduct_quantity(quantity)
+
+        # Add quantity back to this inventory (general/admin warehouse)
+        self.add_quantity(quantity)
+        return store_inventory
+
+
+STATUS_PENDING = 'pending'
+STATUS_COMPLETED = 'completed'
+STATUS_CHOICES = [
+        (STATUS_PENDING, 'Pending'),
+        (STATUS_COMPLETED, 'Completed'),
+]
 
 # Transfer Model
 class Transfer(models.Model):
@@ -70,11 +156,11 @@ class Transfer(models.Model):
     product = models.ForeignKey(Product, related_name="transfers", on_delete=models.CASCADE)
     quantity = models.IntegerField()
     transfer_date = models.DateTimeField(auto_now_add=True)
-    status = models.CharField(max_length=20, choices=[('pending', 'Pending'), ('completed', 'Completed')])    
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_PENDING)   
     confirmed_by = models.ForeignKey('customers.User', related_name='confirmed_transfers', null=True, blank=True, on_delete=models.SET_NULL)
     
     def __str__(self):
-        return f"Transfer of {self.quantity} {self.product.name} from {self.from_warehouse.name} to {self.to_warehouse.name}"
+        return f"Transfer of {self.quantity} {self.product.name} from {self.source_warehouse.name} to {self.destination_warehouse.name}"
 
 # Stock Request Model (Request for stock to be transferred)
 class StockRequest(models.Model):
@@ -83,7 +169,7 @@ class StockRequest(models.Model):
     warehouse_to = models.ForeignKey(Warehouse, on_delete=models.CASCADE, related_name="stock_requests_to")  # Store warehouse (destination)
     product = models.ForeignKey(Product, related_name='stock_requests', on_delete=models.CASCADE)
     quantity_requested = models.IntegerField()
-    status = models.CharField(max_length=20, choices=[('pending', 'Pending'), ('approved', 'Approved'), ('rejected', 'Rejected')], default='pending')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_PENDING)
     request_date = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
@@ -104,6 +190,16 @@ class ProductMovement(models.Model):
     to_section = models.ForeignKey(Section, related_name="movements_to", on_delete=models.CASCADE)
     quantity = models.PositiveIntegerField()
     movement_date = models.DateTimeField(auto_now_add=True)
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+        if self.from_section.warehouse != self.to_section.warehouse:
+            raise ValidationError("Both sections must belong to the same warehouse.")
+
+    def save(self, *args, **kwargs):
+        if self.from_section.warehouse != self.to_section.warehouse:
+            raise ValueError("Sections must belong to the same warehouse.")
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return f"Moved {self.quantity} of {self.product.name} from {self.from_section.name} to {self.to_section.name}"
