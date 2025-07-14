@@ -12,3 +12,8 @@ class Command(BaseCommand):
             connection.set_schema(tenant.schema_name)
             call_command('migrate', interactive=False)
         self.stdout.write(self.style.SUCCESS('Migrations completed for all tenants.'))
+
+        # python manage.py clean_invalid_tenants && 
+        # python3 manage.py migrate_schemas --shared && 
+        # python3 manage.py migrate_tenants && 
+        # python manage.py setup_public_domain && 

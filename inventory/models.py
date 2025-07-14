@@ -83,7 +83,8 @@ class Inventory(models.Model):
             return "Low Stock"
         else:
             return "In Stock"
-     
+    
+
     class Meta:
         unique_together = ('warehouse', 'section', 'product', 'lot')  # Prevent duplicate inventory entries
         indexes = [
@@ -93,6 +94,18 @@ class Inventory(models.Model):
     def __str__(self):
         return f"{self.product.name} in {self.warehouse.name} (Lot {self.lot.id})"
 
+    def deduct_quantity(self, amount):
+        """Reduce the quantity by `amount`, raising an error if not enough stock."""
+        if amount > self.quantity:
+            raise ValueError("Not enough stock to deduct.")
+        self.quantity -= amount
+        self.save(update_fields=["quantity", "updated_at"])
+
+    def add_quantity(self, amount):
+        """Increase the quantity by `amount`."""
+        self.quantity += amount
+        self.save(update_fields=["quantity", "updated_at"])
+        
     def allocate_to_store(self, store_warehouse, quantity):
         if quantity > self.quantity:
             raise ValueError("Insufficient stock to allocate")
