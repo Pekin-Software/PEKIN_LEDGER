@@ -310,7 +310,7 @@ class Command(BaseCommand):
                     quantity=lot.quantity
                 )
                 created_count += 1
-                self.stdout.write(f"🆕 Inventory created for Lot #{lot.id} and Product '{product.name}'")
+                self.stdout.write(f"🆕 Inventory created for Lot #{lot.id} and Product '{product. product_name}'")
 
         self.stdout.write(f"✅ Inventory backfill complete: {created_count} new inventory records created.")
 
