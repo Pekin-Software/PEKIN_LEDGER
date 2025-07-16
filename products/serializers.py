@@ -13,7 +13,7 @@ class LotSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Lot
-        fields = ['sku', 'quantity', 'purchase_date', 'wholesale_quantity', 'wholesale_purchase_price', 
+        fields = ['id','sku', 'quantity', 'purchase_date', 'wholesale_quantity', 'wholesale_purchase_price', 
                   'retail_purchase_price', 'wholesale_selling_price', 'retail_selling_price', 
                   'expired_date',
                   ]
