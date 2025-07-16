@@ -23,3 +23,4 @@ urlpatterns = [
 # POST	/store/{pk}/add-inventory/	Add or update inventory in the store's warehouse	Authenticated + Admin
 # GET	/store/{pk}/inventory/	List inventory for a store's warehouse	Authenticated + Admin/Assigned Staff
 # GET	/store/main-inventory/	List inventory for a general warehouse	Authenticated + Admin
+#GET /api/store/main-inventory/?exclude_store_id=store_id -return data not in the store
