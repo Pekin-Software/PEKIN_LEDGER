@@ -1,6 +1,7 @@
 from rest_framework.response import Response
 from rest_framework import viewsets, status, permissions
 from .models import Domain, User
+from stores.models import Employee
 from .serializers import UserSerializer
 from django.contrib.auth import authenticate
 from rest_framework.decorators import action
@@ -103,15 +104,25 @@ class LoginViewSet(viewsets.ViewSet):
 
             try:
                 tenant_domain = Domain.objects.get(tenant=user.domain).domain
+                
             except Domain.DoesNotExist:
                 logger.error(f"Domain not found for tenant: {user.domain}")
                 return Response({"error": "Tenant domain not found"}, status=status.HTTP_400_BAD_REQUEST)
+
+            try:
+                with schema_context(user.domain.schema_name):
+                    store_employee = Employee.objects.get(user=user)
+                    store_id = store_employee.store.id
+            except Employee.DoesNotExist:
+                store_id = None
+                logger.warning(f"No store association found for user {user.username}")
 
             response_data = {
                 "role": user.position,
                 "tenant_domain": tenant_domain,
                 "user": user.username,
                 "access_token": access_token,
+                "store_id": store_id, 
             }
 
             response = Response(response_data, status=status.HTTP_200_OK)
@@ -124,7 +135,8 @@ class LoginViewSet(viewsets.ViewSet):
             logger.error(f"Login failed: {str(e)}")
             logger.error(traceback.format_exc())
             return Response({"error": "Internal server error"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-    
+
+        
     @method_decorator(csrf_exempt)
     @action(detail=False, methods=["post"])
     def logout(self, request):
