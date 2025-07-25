@@ -8,7 +8,7 @@ from django.db.models import Sum, F, DecimalField, ExpressionWrapper, Case, When
 from customers.models import User, Client
 
 class Sale(models.Model):
-    tenant = models.ForeignKey(Client, on_delete=models.CASCADE, related_name="sales", null=True, blank=True)
+    tenant = models.ForeignKey(Client, on_delete=models.CASCADE, related_name="sales")
     store = models.ForeignKey(Store, related_name='sales', on_delete=models.CASCADE)
     sale_date = models.DateTimeField(default=timezone.now)
 
@@ -203,7 +203,6 @@ class Sale(models.Model):
         return f"{self.receipt_number} - {self.store.store_name} on {self.sale_date} ({self.currency})"
 
 class SaleDetail(models.Model):
-    tenant = models.ForeignKey(Client, on_delete=models.CASCADE, related_name="sale_details",null=True, blank=True)
     sale = models.ForeignKey(Sale, related_name="sale_details", on_delete=models.CASCADE)
     product = models.ForeignKey(Product, on_delete=models.CASCADE)
     lot = models.ForeignKey(Lot, null=True, blank=True, on_delete=models.CASCADE)
@@ -215,7 +214,7 @@ class SaleDetail(models.Model):
         return f"{self.product.name} - Lot {self.lot.id} - {self.quantity_sold} units in sale {self.sale.id}"
 
 class ExchangeRate(models.Model):
-    tenant = models.ForeignKey(Client, on_delete=models.CASCADE, related_name="exchange_rates", null=True, blank=True)
+    tenant = models.ForeignKey(Client, on_delete=models.CASCADE, related_name="exchange_rates")
     usd_rate = models.DecimalField(max_digits=10, decimal_places=2)
     effective_date = models.DateField(editable=False)
     created_at = models.DateTimeField(auto_now_add=True)
