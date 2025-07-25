@@ -318,48 +318,6 @@ class StoreViewSet(viewsets.ModelViewSet):
 
         return Response(serializer.data, status=status.HTTP_200_OK)
 
-
-    #List Main Inventory
-    # @action(detail=False, methods=['get'], url_path='main-inventory', permission_classes=[IsAuthenticated])
-    # def main_inventory(self, request):
-    #     client = request.user.domain
-
-    #     warehouse = Warehouse.objects.filter(
-    #         tenant=client,
-    #         warehouse_type='general'
-    #     ).first()
-
-    #     if not warehouse:
-    #         return Response({"error": "General warehouse not found."}, status=status.HTTP_404_NOT_FOUND)
-
-    #     # All inventory across all warehouses for total calculation
-    #     all_inventory_qs = Inventory.objects.filter(product__tenant=client)
-
-    #     # Inventory from the main warehouse (for display)
-    #     main_inventory_qs = Inventory.objects.filter(warehouse=warehouse)
-
-    #     # Calculate total quantity per product
-    #     total_qty_map = (
-    #     all_inventory_qs
-    #     .values('product_id')
-    #     .annotate(total_qty=Sum('quantity'))
-    #     )
-
-    #     qty_map = {item['product_id']: item['total_qty'] for item in total_qty_map}
-
-    #     # Pass qty_map to serializer context so serializer can use it
-    #     serializer = InventoryForStoreSerializer(
-    #     main_inventory_qs.distinct('product_id'),  # show products from main warehouse only
-    #     many=True,
-    #     context={
-    #         'request': request,
-    #         'inventory_qs': all_inventory_qs,  # so product.lots can access all lots across locations
-    #         'qty_map': qty_map
-    #         }
-    #     )
-
-    #     return Response(serializer.data, status=status.HTTP_200_OK)
-
     @action(detail=False, methods=['get'], url_path='main-inventory', permission_classes=[IsAuthenticated])
     def main_inventory(self, request):
         client = request.user.domain
