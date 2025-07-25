@@ -16,6 +16,12 @@ class Product(models.Model):
     created_at = models.DateTimeField(default=timezone.now)
     updated_at = models.DateTimeField(auto_now=True)
     
+    CURRENCY_CHOICES = [
+        ('USD', 'US Dollars'),
+        ('LRD', 'Liberian Dollars'),
+    ]
+    currency = models.CharField(max_length=3, choices=CURRENCY_CHOICES, default='LRD')
+
     def __str__(self):
         return self.product_name
 
@@ -59,11 +65,11 @@ class Lot(models.Model):
     expired_date = models.DateField(null=True, blank=True)  # Expiration date
 
     # Pricing
-    wholesale_purchase_price = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)  # Price when purchased in bulk
-    retail_purchase_price = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)  # Price per unit when bought individually
+    purchase_price = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)  # Price when purchased in bulk
+    wholesale_quantity = models.PositiveIntegerField(default=0) 
     wholesale_selling_price = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)  # Selling price for bulk buyers
     retail_selling_price = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)  # Selling price for individual customers
-    wholesale_quantity = models.PositiveIntegerField(default=0) 
+    
     # Timestamps
     purchase_date = models.DateField(null=True, blank=True)  # Date of purchase
     created_at = models.DateTimeField(default=timezone.now)
@@ -81,17 +87,6 @@ class Lot(models.Model):
         category_code = self.product.category.name[:3].upper()
         unique_id = uuid.uuid4().hex[:6].upper()
         return slugify(f"{category_code}-{unique_id}").upper()
-
-    # @property
-    # def stock_status(self):
-    #     if self.expired_date and self.expired_date < timezone.now().date():
-    #         return "Expired"
-    #     elif self.quantity > 0:
-    #         return "In Stock"
-    #     elif self.total_quantity <= self.threshold_value:
-    #         return "Low Stock"
-    #     else:
-    #         return "Out of Stock"
     
     def save(self, *args, **kwargs):
         if not self.sku:  # Generate SKU if not set
