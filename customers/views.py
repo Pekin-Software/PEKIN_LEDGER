@@ -118,11 +118,13 @@ class LoginViewSet(viewsets.ViewSet):
                 logger.warning(f"No store association found for user {user.username}")
 
             response_data = {
+                "id": user.id,
                 "role": user.position,
                 "tenant_domain": tenant_domain,
                 "user": user.username,
                 "access_token": access_token,
                 "store_id": store_id, 
+                
             }
 
             response = Response(response_data, status=status.HTTP_200_OK)

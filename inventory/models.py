@@ -128,7 +128,6 @@ class Inventory(models.Model):
         self.add_quantity(quantity)
         return store_inventory
 
-
 STATUS_PENDING = 'pending'
 STATUS_COMPLETED = 'completed'
 STATUS_CHOICES = [
