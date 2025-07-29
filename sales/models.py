@@ -7,6 +7,14 @@ from django.db.models import Sum, F, DecimalField, ExpressionWrapper, Case, When
 from customers.models import User, Client
 from collections import defaultdict
 from decimal import Decimal
+from django.core.exceptions import ValidationError
+
+def save(self, *args, **kwargs):
+    if self.sale and self.sale.payment_status == 'Cancelled':
+        raise ValidationError("Cannot make a payment to a cancelled sale.")
+    super().save(*args, **kwargs)
+    self.sale.update_payment_totals()
+
 
 class Sale(models.Model):
     tenant = models.ForeignKey(Client, on_delete=models.CASCADE, related_name="sales")
@@ -503,7 +511,7 @@ class Payment(models.Model):
 
     def save(self, *args, **kwargs):
         if self.sale and self.sale.payment_status == 'Cancelled':
-            raise ValueError("Cannot make a payment to a cancelled sale.")
+            raise ValidationError("Cannot make a payment to a cancelled sale.")
         super().save(*args, **kwargs)
         self.sale.update_payment_totals()
     

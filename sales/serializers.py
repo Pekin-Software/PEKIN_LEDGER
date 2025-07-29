@@ -21,10 +21,9 @@ class PaymentSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'created_at']
 
     def validate(self, data):
-        sale = data['sale']
-        if sale.payment_status == 'Cancelled':
-            raise serializers.ValidationError("Cannot make a payment to a cancelled sale.")
-        return data
+            if data['sale'].payment_status == 'Cancelled':
+                raise serializers.ValidationError("Cannot make a payment to a cancelled sale.")
+            return data
 
 class SaleSerializer(serializers.ModelSerializer):
     sale_details = SaleDetailSerializer(many=True, read_only=True)
