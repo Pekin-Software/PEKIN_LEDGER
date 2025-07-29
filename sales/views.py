@@ -3,8 +3,8 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django.db import transaction
-from .models import Sale, SaleDetail, SaleReport, ExchangeRate
-from .serializers import SaleSerializer, SaleDetailSerializer, SaleReportFilterSerializer, ExchangeRateSerializer
+from .models import Sale, SaleReport, ExchangeRate, Payment, Refund
+from .serializers import SaleSerializer, SaleReportFilterSerializer, ExchangeRateSerializer, RefundSerializer
 from products.models import Product
 from stores.models import Store
 from django.http import HttpResponse
@@ -13,14 +13,13 @@ from reportlab.lib import colors
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet
 from datetime import datetime, timedelta
-from customers.models import User
+from decimal import Decimal
 
 class SaleViewSet(viewsets.ModelViewSet):
     serializer_class = SaleSerializer
     permission_classes = [IsAuthenticated]
     
     def get_queryset(self):
-        # Assuming request.tenant is set
         tenant = self.request.tenant
         return Sale.objects.filter(store__tenant=tenant).select_related('store')
 
@@ -30,10 +29,13 @@ class SaleViewSet(viewsets.ModelViewSet):
         tenant = request.tenant
         store_id = request.data.get('store_id')
         products_data = request.data.get('products')
-        payment_method = request.data.get('payment_method')
-
+        payments_data = request.data.get('payments', [])
+        sale_currency = request.data.get('currency', 'USD')
+        
         if not store_id or not products_data:
             return Response({"error": "store_id and products are required."}, status=status.HTTP_400_BAD_REQUEST)
+        # if not payments_data:
+        #     return Response({"error": "At least one payment is required."}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
             store = Store.objects.get(id=store_id,  tenant=tenant)
@@ -42,11 +44,12 @@ class SaleViewSet(viewsets.ModelViewSet):
 
         cashier = request.user
 
-            # Validate payment method against model choices
-        valid_methods = dict(Sale.PAYMENT_METHOD_CHOICES).keys()
-        if payment_method not in valid_methods:
+        
+        # Validate currency
+        valid_currencies = dict(Sale.CURRENCY_CHOICES).keys()
+        if sale_currency not in valid_currencies:
             return Response(
-                {"error": f"Invalid payment method. Must be one of {list(valid_methods)}."},
+                {"error": f"Invalid currency. Must be one of {list(valid_currencies)}."},
                 status=status.HTTP_400_BAD_REQUEST
             )
         
@@ -62,14 +65,21 @@ class SaleViewSet(viewsets.ModelViewSet):
                 product = Product.objects.get(id=product_id,  tenant=tenant)
                 products_with_qty.append({'product': product, 'quantity': quantity_sold})
 
+                  # Validate payments
+            valid_methods = dict(Payment.PAYMENT_METHOD_CHOICES).keys()
+            for p in payments_data:
+                if p['method'] not in valid_methods:
+                    raise ValueError(f"Invalid payment method: {p['method']}")
+
             sale = Sale.process_sale(
                 store=store,
                 products_with_qty=products_with_qty,
+                payments=payments_data,
                 cashier=cashier,
-                payment_method=payment_method,
+                sale_currency=sale_currency,
                 tenant=tenant
             )
-
+    
         except (Product.DoesNotExist, ValueError) as e:
             transaction.set_rollback(True)
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
@@ -85,6 +95,84 @@ class SaleViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(sales, many=True)
         return Response(serializer.data)
     
+    @action(detail=True, methods=['post'], url_path='add-payment')
+    @transaction.atomic
+    def add_payment(self, request, pk=None):
+        sale = self.get_object()
+        payments_data = request.data.get('payments', [])
+
+        if not payments_data:
+            return Response({"error": "No payment data provided."}, status=status.HTTP_400_BAD_REQUEST)
+
+        valid_methods = dict(Payment.PAYMENT_METHOD_CHOICES).keys()
+        for p in payments_data:
+            if p['method'] not in valid_methods:
+                return Response({"error": f"Invalid payment method: {p['method']}"}, status=status.HTTP_400_BAD_REQUEST)
+
+        exchange_rate = Decimal(sale.exchange_rate_used)
+
+        # ---- Check for overpayment ----
+        current_paid = Decimal(sale.amount_paid)
+        additional_amount = Decimal('0')
+
+        for p in payments_data:
+            pay_amount = Decimal(str(p['amount']))
+            pay_currency = p.get('currency', sale.currency)
+
+            # Convert to sale currency for validation
+            if pay_currency != sale.currency:
+                if sale.currency == "USD" and pay_currency == "LRD":
+                    pay_amount = pay_amount / exchange_rate
+                elif sale.currency == "LRD" and pay_currency == "USD":
+                    pay_amount = pay_amount * exchange_rate
+
+            additional_amount += pay_amount
+
+        new_total = current_paid + additional_amount
+        if new_total > sale.grand_total:
+            return Response(
+                {"error": f"Payment exceeds the outstanding balance. Balance due: {sale.balance_due}"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # ---- Save payments ----
+        for p in payments_data:
+            Payment.objects.create(
+                sale=sale,
+                method=p['method'],
+                amount=p['amount'],
+                currency=p.get('currency', sale.currency),
+                status='Completed'
+            )
+
+        serializer = self.get_serializer(sale)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=['post'], url_path='cancel')
+    @transaction.atomic
+    def cancel_sale_api(self, request, pk=None):
+        sale = self.get_object()
+        reason = request.data.get("reason", "Cancelled via API")
+        sale.cancel_sale(cancelled_by=request.user, reason=reason)
+        return Response({"message": "Sale cancelled and inventory restored."}, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=['post'], url_path='remove_items')
+    @transaction.atomic
+    def partial_cancel_sale_api(self, request, pk=None):
+        sale = self.get_object()
+        items = request.data.get("items")
+        reason = request.data.get("reason", "Partial cancellation via API")
+
+        if not items or not isinstance(items, list):
+            return Response({"error": "Provide a list of items with sale_detail_id and quantity."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            sale.partial_cancel(cancelled_items=items, cancelled_by=request.user, reason=reason)
+        except ValueError as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response({"message": "Partial cancellation processed successfully."}, status=status.HTTP_200_OK)
+
     @action(detail=False, methods=['get'], url_path='download-sales-report')
     def download_sales_report(self, request):
         tenant = request.tenant
@@ -168,11 +256,11 @@ class SaleViewSet(viewsets.ModelViewSet):
             end_date=data['end_date'],
             currency=data.get('currency', 'USD'),
             cashier_id=data.get('cashier_id'),
-            payment_method=data.get('payment_method'),
             report_type='store', # or 'general' 
             tenant=tenant
         )
         return Response(report)
+    
     
 class ExchangeRateViewSet(viewsets.ModelViewSet):
     serializer_class = ExchangeRateSerializer
@@ -190,4 +278,42 @@ class ExchangeRateViewSet(viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
         instance = serializer.save(tenant=tenant)
         
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+class RefundViewSet(viewsets.ModelViewSet):
+    serializer_class = RefundSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        tenant = self.request.tenant
+        return Refund.objects.filter(sale__store__tenant=tenant).select_related('processed_by').order_by('-processed_at')
+
+    @transaction.atomic
+    def perform_create(self, serializer):
+        tenant = self.request.tenant
+        serializer.save(processed_by=self.request.user, tenant=tenant)
+
+    @action(detail=False, methods=['post'], url_path='issue-refund')
+    @transaction.atomic
+    def issue_refund(self, request):
+        sale_id = request.data.get('sale_id')
+        amount = request.data.get('amount')
+        reason = request.data.get('reason', 'Refund issued')
+
+        if not sale_id or not amount:
+            return Response({"error": "sale_id and amount are required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            sale = Sale.objects.get(id=sale_id, store__tenant=request.tenant)
+        except Sale.DoesNotExist:
+            return Response({"error": "Sale not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        refund = Refund.objects.create(
+            sale=sale,
+            amount=amount,
+            processed_by=request.user,
+            reason=reason,
+            tenant=request.tenant
+        )
+        serializer = self.get_serializer(refund)
         return Response(serializer.data, status=status.HTTP_201_CREATED)

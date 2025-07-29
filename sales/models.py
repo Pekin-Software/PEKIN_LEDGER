@@ -1,43 +1,41 @@
 from django.db import models, transaction
-from collections import defaultdict
 from stores.models import Store
 from products.models import Product, Lot
 from inventory.models import Inventory, Warehouse
 from django.utils import timezone
 from django.db.models import Sum, F, DecimalField, ExpressionWrapper, Case, When
 from customers.models import User, Client
+from collections import defaultdict
 
 class Sale(models.Model):
     tenant = models.ForeignKey(Client, on_delete=models.CASCADE, related_name="sales")
     store = models.ForeignKey(Store, related_name='sales', on_delete=models.CASCADE)
     sale_date = models.DateTimeField(default=timezone.now)
 
-    # Line totals per currency (unconverted)
+    PAYMENT_STATUS_CHOICES = [
+        ('Processing', 'Processing'),
+        ('Completed', 'Completed'),
+        ('Failed', 'Failed'),
+        ('Cancelled', 'Cancelled'),
+    ]
+    payment_status = models.CharField(max_length=20, choices=PAYMENT_STATUS_CHOICES, default='Processing')
+
     total_usd = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     total_lrd = models.DecimalField(max_digits=12, decimal_places=2, default=0)
-
-    # Grand total converted into the sale currency
     grand_total = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    amount_paid = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    balance_due = models.DecimalField(max_digits=12, decimal_places=2, default=0)
 
     cashier = models.ForeignKey(User, related_name='sales', on_delete=models.SET_NULL, null=True, blank=True)
     receipt_number = models.CharField(max_length=20, unique=True, editable=False, null=True)
 
     CURRENCY_CHOICES = [('USD', 'USD'), ('LRD', 'LRD')]
-    currency = models.CharField(max_length=3, choices=CURRENCY_CHOICES, default='USD')  # Sale-level currency
+    currency = models.CharField(max_length=3, choices=CURRENCY_CHOICES, default='USD')
 
-    PAYMENT_METHOD_CHOICES = [
-        ('Cash', 'Cash'),
-        ('Orange_Money', 'Orange Money'),
-        ('Mobile_Money', 'Mobile Money'),
-        ('Visa_MasterCard', 'Visa/MasterCard'),
-    ]
-    payment_method = models.CharField(max_length=20, choices=PAYMENT_METHOD_CHOICES, default='Cash')
-
-    # The exchange rate at the time of the sale
     exchange_rate_used = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True, editable=False)
 
     class Meta:
-        unique_together = ('tenant', 'store', 'receipt_number')  # Strict uniqueness per tenant & store
+        unique_together = ('tenant', 'store', 'receipt_number')
 
     def save(self, *args, **kwargs):
         if self.pk:
@@ -51,11 +49,15 @@ class Sale(models.Model):
                 raise ValueError("No exchange rate found for tenant.")
             self.exchange_rate_used = latest_rate.usd_rate
 
-        # Always recompute the grand total
+        # Recompute grand total
         if self.currency == 'USD':
-            self.grand_total = self.total_usd + (self.total_lrd / self.exchange_rate_used)
-        else:  # Sale in LRD
-            self.grand_total = self.total_lrd + (self.total_usd * self.exchange_rate_used)
+            self.grand_total = self.total_usd
+            if self.total_lrd > 0:
+                self.grand_total += (self.total_lrd / self.exchange_rate_used)
+        else:
+            self.grand_total = self.total_lrd
+            if self.total_usd > 0:
+                self.grand_total += (self.total_usd * self.exchange_rate_used)
 
         super().save(*args, **kwargs)
 
@@ -74,7 +76,7 @@ class Sale(models.Model):
                 .order_by('-id')
                 .first()
             )
-            prefix = chr(64 + store.id)  # Store-specific prefix
+            prefix = chr(64 + store.id)  # Store-specific prefix (A, B, C...)
             last_number = 0
             if last_sale and last_sale.receipt_number:
                 try:
@@ -82,14 +84,194 @@ class Sale(models.Model):
                 except ValueError:
                     last_number = 0
             new_number = last_number + 1
-            return f"T{tenant.id}S{prefix}{current_year}-{new_number:04d}"  # Example: T1SA2025-0001
-        
+            return f"T{tenant.id}S{prefix}{current_year}-{new_number:04d}"
+
     def __str__(self):
-        return f"{self.receipt_number} - {self.store.store_name} ({self.currency})"
+        return f"{self.receipt_number} - {self.store.store_name} on {self.sale_date} ({self.currency})"
+
+    @staticmethod
+    def allocate_refunds_proportionally(payments, total_refund):
+        allocation = {}
+        total_paid = sum(p.amount - p.refunded_amount for p in payments)
+        if total_paid <= 0 or total_refund <= 0:
+            return allocation
+
+        remaining = total_refund
+        for i, payment in enumerate(payments):
+            available = payment.amount - payment.refunded_amount
+            if available <= 0:
+                continue
+
+            share = round((available / total_paid) * total_refund, 2)
+
+            if i == len(payments) - 1:
+                share = remaining
+
+            refund_amount = min(share, available)
+            allocation[payment.id] = refund_amount
+            remaining -= refund_amount
+
+            if remaining <= 0:
+                break
+
+        return allocation
+
+    def reverse_inventory(self):
+        for detail in self.sale_details.all():
+            inventory, _ = Inventory.objects.get_or_create(
+                lot=detail.lot,
+                product=detail.product,
+                warehouse=self.store.warehouses.first(),
+                tenant=self.tenant,
+                defaults={'quantity': 0}
+            )
+            inventory.quantity += detail.quantity_sold
+            inventory.save()
+
+    @transaction.atomic
+    def cancel_sale(self, cancelled_by=None, reason="Cancelled by user"):
+        self.reverse_inventory()
+
+        payments = list(self.payments.filter(status="Completed"))
+        total_refund = sum(p.amount - p.refunded_amount for p in payments)
+        allocation = self.allocate_refunds_proportionally(payments, total_refund)
+
+        for payment in payments:
+            tenant = payment.sale.tenant
+            if payment.id in allocation and allocation[payment.id] > 0:
+                payment.refund(
+                    amount=allocation[payment.id],
+                    processed_by=cancelled_by,
+                    reason=reason
+                )
+
+        self.payment_status = 'Cancelled'
+        self.save(update_fields=['payment_status'])
+
+        SaleCancellationLog.objects.create(
+            sale=self,
+            cancelled_by=cancelled_by,
+            reason=reason
+        )
+
+        return self
+
+    @transaction.atomic
+    def partial_cancel(self, cancelled_items, cancelled_by=None, reason="Partial cancellation"):
+        from collections import defaultdict
+
+        reversal_summary = defaultdict(int)
+
+        for item in cancelled_items:
+            detail = self.sale_details.get(id=item['sale_detail_id'])
+            cancel_qty = int(item['quantity'])
+
+            if cancel_qty <= 0 or cancel_qty > detail.active_quantity:
+                raise ValueError(f"Invalid cancellation quantity for {detail.product}.")
+
+            inventory = Inventory.objects.get(
+                lot=detail.lot,
+                product=detail.product,
+                warehouse=self.store.warehouses.first(),
+                tenant=self.tenant
+            )
+            inventory.quantity += cancel_qty
+            inventory.save()
+
+            detail.cancelled_quantity += cancel_qty
+            detail.save()
+
+            reversal_summary[detail.product.id] += cancel_qty
+
+        old_total = self.grand_total
+        self.recalculate_totals()
+        self.save()
+
+        total_paid = sum(p.amount - p.refunded_amount for p in self.payments.filter(status="Completed"))
+        new_balance = self.grand_total
+        overpaid = max(0, total_paid - new_balance)
+
+        if overpaid > 0:
+            completed_payments = list(self.payments.filter(status="Completed"))
+            allocation = self.allocate_refunds_proportionally(completed_payments, overpaid)
+            for payment in completed_payments:
+                if payment.id in allocation and allocation[payment.id] > 0:
+                    payment.refund(
+                        amount=allocation[payment.id],
+                        processed_by=cancelled_by,
+                        reason=reason
+                    )
+
+        self.update_status()
+
+        SaleCancellationLog.objects.create(
+            sale=self,
+            cancelled_by=cancelled_by,
+            reason=reason,
+            details=dict(reversal_summary)
+        )
+        return self
+
+    def update_status(self):
+        paid = sum(p.amount for p in self.payments.filter(status__iexact="Completed"))
+        if paid >= self.grand_total:
+            self.payment_status = "Completed"
+        elif paid > 0:
+            self.payment_status = "Processing"
+        else:
+            self.payment_status = "Pending"
+        self.save(update_fields=['payment_status'])
+
+    def recalculate_totals(self):
+        total_usd = 0
+        total_lrd = 0
+        for detail in self.sale_details.all():
+            active_qty = detail.active_quantity
+            line_total = active_qty * detail.price_at_sale
+            if detail.currency == 'USD':
+                total_usd += line_total
+            else:
+                total_lrd += line_total
+        self.total_usd = total_usd
+        self.total_lrd = total_lrd
+
+        if self.currency == 'USD':
+            self.grand_total = self.total_usd + (self.total_lrd / self.exchange_rate_used)
+        else:
+            self.grand_total = self.total_lrd + (self.total_usd * self.exchange_rate_used)
+
+    def update_payment_totals(self, skip_if_cancelled=False):
+        if skip_if_cancelled and self.payment_status == 'Cancelled':
+            return
     
+        total_paid = 0
+        for p in self.payments.all():
+            if p.currency != self.currency:
+                # Convert payment to sale currency
+                if self.currency == 'USD':
+                    total_paid += (p.amount / self.exchange_rate_used)
+                else:
+                    total_paid += (p.amount * self.exchange_rate_used)
+            else:
+                total_paid += p.amount - p.refunded_amount
+
+        self.amount_paid = total_paid
+        self.balance_due = max(self.grand_total - total_paid, 0)
+
+        # Update payment status based on actual amounts
+        if self.amount_paid >= self.grand_total:
+            self.payment_status = 'Completed'
+        elif self.amount_paid > 0:
+            
+            self.payment_status = 'Processing'
+        else:
+            self.payment_status = 'Pending'
+        self.save(update_fields=['amount_paid', 'balance_due', 'payment_status'])
+
+
     @staticmethod
     @transaction.atomic
-    def process_sale(tenant, store, products_with_qty, cashier=None, payment_method=None, sale_currency='USD'):
+    def process_sale(tenant, store, products_with_qty, payments, cashier=None, sale_currency='USD'):
         if store.tenant_id != tenant.id:
             raise ValueError("Store does not belong to this tenant.")
 
@@ -109,22 +291,25 @@ class Sale(models.Model):
             store=store,
             sale_date=timezone.now(),
             cashier=cashier,
-            payment_method=payment_method,
             receipt_number=receipt_number,
             currency=sale_currency,
             exchange_rate_used=rate,
+            payment_status='Processing',
         )
 
         total_usd = 0
         total_lrd = 0
 
         for item in products_with_qty:
-            product = item['product'] 
+            product = item['product']
             if product.tenant_id != tenant.id:
                 raise ValueError(f"Product {product.product_name} does not belong to this tenant.")
+            latest_lot = product.lots.order_by('-purchase_date').first()
+            display_price = latest_lot.retail_selling_price if latest_lot else 0
             quantity_sold = item['quantity']
             product_currency = product.currency
-            price = product.retail_price
+
+            price = display_price
 
             store_inventory = Inventory.objects.filter(
                 warehouse=warehouse,
@@ -152,11 +337,9 @@ class Sale(models.Model):
             if quantity_left > 0:
                 raise ValueError(f"Unexpected stock mismatch for {product.product_name}.")
 
-            # from .models import SaleDetail
             for lot, qty in lots_used:
                 line_total = qty * price
                 SaleDetail.objects.create(
-                    tenant=tenant,
                     sale=sale,
                     product=product,
                     lot=lot,
@@ -171,36 +354,37 @@ class Sale(models.Model):
 
         sale.total_usd = total_usd
         sale.total_lrd = total_lrd
-        # Grand total will be computed in save()
         sale.save()
+
+        valid_methods = dict(Payment.PAYMENT_METHOD_CHOICES).keys()
+        for p in payments:
+            if p['method'] not in valid_methods:
+                raise ValueError(f"Invalid payment method: {p['method']}")
+            Payment.objects.create(
+                sale=sale,
+                method=p['method'],
+                amount=p['amount'],
+                currency=p.get('currency', sale_currency),
+                status='Processing' if p['method'] in ['Orange_Money', 'Visa_MasterCard'] else 'Completed'
+            )
+
         return sale
 
     def get_total_in_usd(self):
-        """
-        Returns the grand total of this sale expressed in USD,
-        converting LRD total using the stored exchange rate.
-        """
         if self.currency == 'USD':
-            # Already in USD, just sum totals
             return self.total_usd + (self.total_lrd / self.exchange_rate_used if self.exchange_rate_used else 0)
         else:
-            # Sale is in LRD, so total_usd is raw USD lines, total_lrd is sale currency, convert LRD to USD
             return self.total_usd + (self.total_lrd / self.exchange_rate_used if self.exchange_rate_used else 0)
 
     def get_total_in_lrd(self):
-        """
-        Returns the grand total of this sale expressed in LRD,
-        converting USD total using the stored exchange rate.
-        """
         if self.currency == 'LRD':
-            # Already in LRD
             return self.total_lrd + (self.total_usd * self.exchange_rate_used if self.exchange_rate_used else 0)
         else:
-            # Sale is in USD, so total_lrd is raw LRD lines, total_usd is sale currency, convert USD to LRD
             return self.total_lrd + (self.total_usd * self.exchange_rate_used if self.exchange_rate_used else 0)
-        
-    def __str__(self):
-        return f"{self.receipt_number} - {self.store.store_name} on {self.sale_date} ({self.currency})"
+
+    def total_paid(self):
+        return sum(p.amount - p.refunded_amount for p in self.payments.all())
+
 
 class SaleDetail(models.Model):
     sale = models.ForeignKey(Sale, related_name="sale_details", on_delete=models.CASCADE)
@@ -209,6 +393,11 @@ class SaleDetail(models.Model):
     quantity_sold = models.IntegerField()
     price_at_sale = models.DecimalField(max_digits=10, decimal_places=2)
     currency = models.CharField(max_length=3, choices=[('USD', 'USD'), ('LRD', 'LRD')], default='LRD')  # from product
+    cancelled_quantity = models.IntegerField(default=0)
+
+    @property
+    def active_quantity(self):
+        return self.quantity_sold - self.cancelled_quantity
     
     def __str__(self):
         return f"{self.product.name} - Lot {self.lot.id} - {self.quantity_sold} units in sale {self.sale.id}"
@@ -230,6 +419,64 @@ class ExchangeRate(models.Model):
 
     def __str__(self):
         return f" {self.tenant.name} USD Rate: {self.usd_rate} (Effective: {self.effective_date})"
+
+class Refund(models.Model):
+    payment = models.ForeignKey('Payment', related_name='refunds', on_delete=models.CASCADE)
+    amount = models.DecimalField(max_digits=12, decimal_places=2)
+    processed_by = models.ForeignKey(User, null=True, on_delete=models.SET_NULL)
+    processed_at = models.DateTimeField(auto_now_add=True)
+    reason = models.TextField(blank=True, null=True)
+    
+    def __str__(self):
+        return f"Refund {self.amount} for Payment {self.payment.id}"
+
+class Payment(models.Model):
+    PAYMENT_METHOD_CHOICES = [
+        ('Cash', 'Cash'),
+        ('Visa_MasterCard', 'Visa_MasterCard'),
+        ('Orange_Money', 'Orange_Money'),
+        ('Mobile_Money', 'Mobile_Money'),
+    ]
+    sale = models.ForeignKey(Sale, on_delete=models.CASCADE, related_name='payments')
+    method = models.CharField(max_length=20, choices=PAYMENT_METHOD_CHOICES)
+    amount = models.DecimalField(max_digits=12, decimal_places=2)
+    refunded_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    currency = models.CharField(max_length=3, default='USD')
+    status = models.CharField(max_length=20, default='Processing')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    @property
+    def tenant(self):
+        return self.sale.tenant
+    
+    def refund(self, amount, processed_by=None, reason=""):
+        if amount <= 0 or amount > (self.amount - self.refunded_amount):
+            raise ValueError("Invalid refund amount")
+        
+        self.refunded_amount += amount
+        self.save(update_fields=['refunded_amount'])
+        
+          # Create a Refund entry
+        Refund.objects.create(
+            payment=self,
+            amount=amount,
+            processed_by=processed_by,
+            reason=reason
+        )
+
+        return self
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        self.sale.update_payment_totals()
+    
+class SaleCancellationLog(models.Model):
+    sale = models.ForeignKey(Sale, on_delete=models.CASCADE, related_name='cancellation_logs')
+    cancelled_by = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL)
+    reason = models.TextField()
+    details = models.JSONField(null=True, blank=True)
+    cancelled_at = models.DateTimeField(auto_now_add=True)
 
 class SaleReport:
     @staticmethod
@@ -393,6 +640,8 @@ class SaleReport:
         }
 
 
+
+
 #How sales report will look 
 # [
 #     {
@@ -488,4 +737,5 @@ class SaleReport:
 #         lot.save()
 
 #     super().delete(*args, **kwargs)
+
 

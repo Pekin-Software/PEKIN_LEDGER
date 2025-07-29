@@ -1,12 +1,12 @@
 from pickle import GET
 from rest_framework.routers import DefaultRouter
-from .views import SaleViewSet, ExchangeRateViewSet
+from .views import SaleViewSet, ExchangeRateViewSet, RefundViewSet
 from django.urls import path, include
 
 router = DefaultRouter()
 router.register(r'sales', SaleViewSet, basename='sales')
 router.register(r'rates', ExchangeRateViewSet, basename='exchange-rate')
-
+router.register('refunds', RefundViewSet, basename='refunds')
 urlpatterns = [
     path('api/', include(router.urls)),
 ]
@@ -42,5 +42,7 @@ urlpatterns = [
 
 # | HTTP Method | URL                         | Action                 |
 # | ----------- | --------------------------- | ---------------------- |
-# | GET         | `/rates/`          | list all rates         |
-# | POST        | `/rates/add-rate/` | custom add rate action |
+# | GET         | `/rates/`                   | list all rates         |
+# | POST        | `/rates/add-rate/`          | custom add rate action |
+# |POST         |/api/sales/{sale_id}/cancel/ | cancel Sale fully
+# |POST         |/api/sales/{sale_id}/add-payment/ | Make Payment
