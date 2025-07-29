@@ -262,7 +262,6 @@ class Sale(models.Model):
         if self.amount_paid >= self.grand_total:
             self.payment_status = 'Completed'
         elif self.amount_paid > 0:
-            
             self.payment_status = 'Processing'
         else:
             self.payment_status = 'Pending'
@@ -475,7 +474,6 @@ class SaleCancellationLog(models.Model):
     sale = models.ForeignKey(Sale, on_delete=models.CASCADE, related_name='cancellation_logs')
     cancelled_by = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL)
     reason = models.TextField()
-    details = models.JSONField(null=True, blank=True)
     cancelled_at = models.DateTimeField(auto_now_add=True)
 
 class SaleReport:

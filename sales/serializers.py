@@ -70,6 +70,6 @@ class SaleCancellationLogSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = SaleCancellationLog
-        fields = ['id', 'cancelled_by', 'cancelled_by_name', 'reason', 'details', 'cancelled_at']
+        fields = ['id', 'cancelled_by', 'cancelled_by_name', 'reason', 'cancelled_at']
         read_only_fields = ['id', 'cancelled_by_name', 'cancelled_at']
 
