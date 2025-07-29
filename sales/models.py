@@ -235,6 +235,7 @@ class Sale(models.Model):
 
         self.update_status()
 
+        self.update_payment_totals()
         SaleCancellationLog.objects.create(
             sale=self,
             cancelled_by=cancelled_by,
