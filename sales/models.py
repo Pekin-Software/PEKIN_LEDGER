@@ -6,6 +6,7 @@ from django.utils import timezone
 from django.db.models import Sum, F, DecimalField, ExpressionWrapper, Case, When
 from customers.models import User, Client
 from collections import defaultdict
+from decimal import Decimal
 
 class Sale(models.Model):
     tenant = models.ForeignKey(Client, on_delete=models.CASCADE, related_name="sales")
@@ -136,6 +137,7 @@ class Sale(models.Model):
         total_refund = sum(p.amount - p.refunded_amount for p in payments)
         allocation = self.allocate_refunds_proportionally(payments, total_refund)
 
+        refunded_summary = {}
         for payment in payments:
             tenant = payment.sale.tenant
             if payment.id in allocation and allocation[payment.id] > 0:
@@ -144,6 +146,7 @@ class Sale(models.Model):
                     processed_by=cancelled_by,
                     reason=reason
                 )
+                refunded_summary[payment.id] = str(allocation[payment.id])
 
         self.payment_status = 'Cancelled'
         self.save(update_fields=['payment_status'])
@@ -151,7 +154,23 @@ class Sale(models.Model):
         SaleCancellationLog.objects.create(
             sale=self,
             cancelled_by=cancelled_by,
-            reason=reason
+            reason=reason,
+            details={
+            "items": {
+                detail.id: {
+                    "sale_detail_id": detail.id,
+                    "product_id": detail.product.id,
+                    "product_name": detail.product.product_name,
+                    "quantity_cancelled": detail.quantity_sold,
+                    "unit_price": str(detail.price_at_sale),
+                    "currency": detail.currency,
+                    "refund_amount": str(detail.quantity_sold * detail.price_at_sale),
+                }
+                for detail in self.sale_details.all()
+            },
+            "total_refund": str(total_refund),
+            "refunds_by_payment": refunded_summary
+        }
         )
 
         return self
@@ -181,7 +200,18 @@ class Sale(models.Model):
             detail.cancelled_quantity += cancel_qty
             detail.save()
 
-            reversal_summary[detail.product.id] += cancel_qty
+            refund_amount = Decimal(cancel_qty) * Decimal(detail.price_at_sale)
+            total_refund_amount += refund_amount
+
+            reversal_summary[detail.id] = {
+                "sale_detail_id": detail.id,
+                "product_id": detail.product.id,
+                "product_name": detail.product.product_name,
+                "quantity_cancelled": cancel_qty,
+                "unit_price": str(detail.price_at_sale),
+                "currency": detail.currency,
+                "refund_amount": str(refund_amount),
+            }
 
         old_total = self.grand_total
         self.recalculate_totals()
@@ -208,7 +238,10 @@ class Sale(models.Model):
             sale=self,
             cancelled_by=cancelled_by,
             reason=reason,
-            details=dict(reversal_summary)
+            details={
+                "items": reversal_summary,
+                "total_refund": str(total_refund_amount)
+            }
         )
         return self
 
@@ -474,6 +507,7 @@ class SaleCancellationLog(models.Model):
     sale = models.ForeignKey(Sale, on_delete=models.CASCADE, related_name='cancellation_logs')
     cancelled_by = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL)
     reason = models.TextField()
+    details = models.JSONField(null=True, blank=True)
     cancelled_at = models.DateTimeField(auto_now_add=True)
 
 class SaleReport:
