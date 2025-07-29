@@ -262,28 +262,8 @@ class SaleViewSet(viewsets.ModelViewSet):
         return Response(report)
     
     
-# class ExchangeRateViewSet(viewsets.ModelViewSet):
-#     serializer_class = ExchangeRateSerializer
-#     permission_classes = [IsAuthenticated]
-
-#     def get_queryset(self):
-#         tenant = self.request.tenant
-#         return ExchangeRate.objects.filter(tenant=tenant).order_by('-effective_date')
-    
-#     @action(detail=False, methods=['post'], url_path='add-rate')
-#     @transaction.atomic
-#     def add_rate(self, request):
-#         tenant = request.tenant
-        
-#         serializer = self.get_serializer(data=request.data)
-#         serializer.is_valid(raise_exception=True)
-#         instance = serializer.save(tenant=tenant)
-        
-#         return Response(self.get_serializer(instance).data, status=status.HTTP_201_CREATED)
-
-
 class ExchangeRateViewSet(viewsets.ModelViewSet):
-    queryset = ExchangeRate.objects.none()  # avoids DRF errors
+    queryset = ExchangeRate.objects.none() 
     serializer_class = ExchangeRateSerializer
     permission_classes = [IsAuthenticated]
 
@@ -295,9 +275,11 @@ class ExchangeRateViewSet(viewsets.ModelViewSet):
     @transaction.atomic
     def add_rate(self, request):
         tenant = request.tenant
+        
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         instance = serializer.save(tenant=tenant)
+        
         return Response(self.get_serializer(instance).data, status=status.HTTP_201_CREATED)
     
 class RefundViewSet(viewsets.ModelViewSet):
