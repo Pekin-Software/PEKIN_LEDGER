@@ -6,7 +6,7 @@ from django.urls import path, include
 router = DefaultRouter()
 router.register(r'sales', SaleViewSet, basename='sales')
 router.register(r'rates', ExchangeRateViewSet, basename='exchange-rate')
-router.register('refunds', RefundViewSet, basename='refunds')
+router.register(r'refunds', RefundViewSet, basename='refunds')
 urlpatterns = [
     path('api/', include(router.urls)),
 ]
