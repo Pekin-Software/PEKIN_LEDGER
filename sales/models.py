@@ -180,7 +180,8 @@ class Sale(models.Model):
         from collections import defaultdict
 
         reversal_summary = defaultdict(int)
-
+        total_refund_amount = Decimal(0) 
+        
         for item in cancelled_items:
             detail = self.sale_details.get(id=item['sale_detail_id'])
             cancel_qty = int(item['quantity'])
