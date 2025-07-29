@@ -502,6 +502,8 @@ class Payment(models.Model):
         return self
 
     def save(self, *args, **kwargs):
+        if self.sale and self.sale.payment_status == 'Cancelled':
+            raise ValueError("Cannot make a payment to a cancelled sale.")
         super().save(*args, **kwargs)
         self.sale.update_payment_totals()
     
