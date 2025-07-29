@@ -14,6 +14,8 @@ from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, 
 from reportlab.lib.styles import getSampleStyleSheet
 from datetime import datetime, timedelta
 from decimal import Decimal
+from django.core.exceptions import ValidationError as DjangoValidationError
+from rest_framework.exceptions import ValidationError as DRFValidationError
 
 class SaleViewSet(viewsets.ModelViewSet):
     serializer_class = SaleSerializer
@@ -101,6 +103,9 @@ class SaleViewSet(viewsets.ModelViewSet):
         sale = self.get_object()
         payments_data = request.data.get('payments', [])
 
+        if sale.payment_status == 'Cancelled':
+            return Response({"error": "Cannot make a payment to a cancelled sale."}, status=status.HTTP_400_BAD_REQUEST)
+
         if not payments_data:
             return Response({"error": "No payment data provided."}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -136,14 +141,25 @@ class SaleViewSet(viewsets.ModelViewSet):
             )
 
         # ---- Save payments ----
-        for p in payments_data:
-            Payment.objects.create(
-                sale=sale,
-                method=p['method'],
-                amount=p['amount'],
-                currency=p.get('currency', sale.currency),
-                status='Completed'
-            )
+        # for p in payments_data:
+        #     Payment.objects.create(
+        #         sale=sale,
+        #         method=p['method'],
+        #         amount=p['amount'],
+        #         currency=p.get('currency', sale.currency),
+        #         status='Completed'
+        #     )
+        try:
+            for p in payments_data:
+                Payment.objects.create(
+                    sale=sale,
+                    method=p['method'],
+                    amount=p['amount'],
+                    currency=p.get('currency', sale.currency),
+                    status='Completed'
+                )
+        except DjangoValidationError as e:
+            raise DRFValidationError(e.messages)
 
         serializer = self.get_serializer(sale)
         return Response(serializer.data, status=status.HTTP_200_OK)

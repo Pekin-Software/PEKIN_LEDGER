@@ -17,11 +17,12 @@ class SaleDetailSerializer(serializers.ModelSerializer):
 class PaymentSerializer(serializers.ModelSerializer):
     class Meta:
         model = Payment
-        fields = ['id', 'method', 'amount', 'currency', 'created_at']
-        read_only_fields = ['id', 'created_at']
+        fields = ['id', 'sale', 'method', 'amount', 'currency', 'created_at']
+        read_only_fields = ['id', 'created_at', 'sale']
 
     def validate(self, data):
-            if data['sale'].payment_status == 'Cancelled':
+            sale = data.get('sale') or getattr(self.instance, 'sale', None)
+            if sale and sale.payment_status == 'Cancelled':
                 raise serializers.ValidationError("Cannot make a payment to a cancelled sale.")
             return data
 
