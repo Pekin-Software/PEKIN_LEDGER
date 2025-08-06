@@ -1,21 +1,19 @@
-from django.db import transaction
 from rest_framework import viewsets, status
-from datetime import timedelta
 from rest_framework.response import Response
-from rest_framework.decorators import action
-from .models import Product, Category, Lot
-from .serializers import (
-    ProductSerializer,
-    CategorySerializer, LotSerializer
-)
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.exceptions import PermissionDenied
-from django.utils import timezone
+from django.db import transaction
+from rest_framework.decorators import action
+from .models import Product, Category, ProductLot, ProductVariant
+from .serializers import (
+    ProductSerializer,
+    CategorySerializer, ProductLotSerializer
+)
 
 # # ViewSet to handle everything in one request
 class ProductViewSet(viewsets.ModelViewSet):
     serializer_class = ProductSerializer
-    permission_classes = [IsAuthenticated]  # Enforces authentication
+    permission_classes = [IsAuthenticated] 
     queryset = Product.objects.all()
     
     def get_object(self):
@@ -32,50 +30,83 @@ class ProductViewSet(viewsets.ModelViewSet):
         context.update({"request": self.request})
         return context
     
+    
     @transaction.atomic
-    def create(self, request, *args, **kwargs):
+    @action(detail=False, methods=['post'], url_path='add-product')
+    def add_product(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        product = serializer.save()
+        product = serializer.save(tenant=self.request.user.domain)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
     
+    @action(detail=True, methods=['patch'], url_path='update-product')
+    @transaction.atomic
+    def update_product(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=True)  # partial=True here!
+        serializer.is_valid(raise_exception=True)
+        product = serializer.save()
+        return Response(self.get_serializer(product).data)
+    
+    @transaction.atomic
+    @action(detail=True, methods=['post'], url_path='restock-product')
+    def restock(self, request, pk=None):
+        product = self.get_object()
+        tenant = request.tenant
+
+        variant_id = request.data.get("variant_id")
+        lots_data = request.data.get("lots", [])
+
+        if not variant_id or not lots_data:
+            return Response(
+                {"detail": "variant_id and lots data are required."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Ensure variant belongs to this product
+        try:
+            variant = product.variants.get(id=variant_id)
+        except ProductVariant.DoesNotExist:
+            return Response(
+                {"detail": "Variant not found for this product."},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        created_lots = []
+
+        # Wrap the whole restock operation in a single atomic transaction
+        with transaction.atomic():
+            for lot_data in lots_data:
+                serializer = ProductLotSerializer(data=lot_data)
+                serializer.is_valid(raise_exception=True)
+                lot = serializer.save(variant=variant)  # Inject variant before saving
+                created_lots.append(ProductLotSerializer(lot).data)
+
+        return Response(
+            {"message": "Product restocked successfully.", "new_lots": created_lots},
+            status=status.HTTP_201_CREATED
+        )
+
     @action(detail=True, methods=['delete'], url_path='delete')
     @transaction.atomic
-    def delete_product(self, request, pk=None):
+    def delete_product(self, request, *args, **kwargs):
         product = self.get_object()
-        product.delete()
-        return Response({"message": "Product deleted successfully"}, status=status.HTTP_204_NO_CONTENT)
-    
-    @action(detail=False, methods=['get'], url_path='list')
-    def list_products(self, request):
-        products = self.get_queryset()
-        serializer = self.get_serializer(products, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
-    
-    @action(detail=True, methods=['put', 'patch'], url_path='update')
-    @transaction.atomic
-    def update_product(self, request, pk=None):
-        product = self.get_object()
-        serializer = self.get_serializer(product, data=request.data, partial=True)
-        serializer.is_valid(raise_exception=True)
-        serializer.save()
-        return Response(serializer.data, status=status.HTTP_200_OK)
-    
-    @action(detail=True, methods=['post'], url_path='restock')
-    @transaction.atomic
-    def restock_product(self, request, pk=None):
-        product = self.get_object()
-        lot_data = request.data.get('lot', None)
-        
-        if not lot_data:
-            return Response({"error": "Lot data is required for restocking."}, status=status.HTTP_400_BAD_REQUEST)
-        
-        lot_serializer = LotSerializer(data=lot_data)
-        if lot_serializer.is_valid():
-            lot_serializer.save(product=product)
-            return Response(lot_serializer.data, status=status.HTTP_201_CREATED)
-        return Response(lot_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+        # Optionally: check inventory quantities before deleting
+        inventory_exists = Inventory.objects.filter(
+            productvariant__product=product,
+            quantity__gt=0
+        ).exists()
+        if inventory_exists:
+            return Response(
+                {"detail": "Cannot delete product with inventory quantities > 0."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # If no inventory or you want to delete anyway:
+        product.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+    
     # Custom action for image upload
     @action(detail=True, methods=['post'], url_path='upload-image')
     @transaction.atomic
@@ -128,34 +159,3 @@ class CategoryViewSet(viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response(serializer.data, status=status.HTTP_200_OK)
-
-class LotViewSet(viewsets.ModelViewSet):
-    serializer_class = LotSerializer
-    permission_classes = [IsAuthenticated]  # Enforces authentication
-    queryset = Product.objects.all()
-    
-    def get_object(self):
-        obj = super().get_object()
-        if obj.product.tenant != self.request.tenant:
-            raise PermissionDenied("Access denied.")
-        return obj
-
-    def get_queryset(self):
-        return Lot.objects.filter(product__tenant=self.request.tenant).order_by('-created_at')
-
-    @action(detail=True, methods=['put', 'patch'], url_path='update')
-    @transaction.atomic
-    def update_lot(self, request, pk=None):
-        lot = self.get_object()
-        serializer = self.get_serializer(lot, data=request.data, partial=True)
-        serializer.is_valid(raise_exception=True)
-        serializer.save()
-        return Response(serializer.data, status=status.HTTP_200_OK)
-    
-    @action(detail=False, methods=['get'], url_path='list')
-    def list_lots(self, request):
-        lots = self.get_queryset()
-        serializer = self.get_serializer(lots, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
-
-
