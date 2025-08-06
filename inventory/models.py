@@ -1,10 +1,10 @@
 from django.db import models
 from customers.models import Client
-from products.models import Product, Lot
+from products.models import Product, ProductLot, ProductVariant
 from stores.models import Store
 import uuid
 from django.utils import timezone
-from django.db.models import Sum
+from rest_framework.exceptions import ValidationError
 
 #Warehouse
 class Warehouse(models.Model):
@@ -54,19 +54,64 @@ class Inventory(models.Model):
     warehouse = models.ForeignKey(Warehouse, related_name="inventories", on_delete=models.CASCADE)
     section = models.ForeignKey(Section, related_name="inventories", on_delete=models.CASCADE)  # Link to Section
     product = models.ForeignKey(Product, related_name="inventories", on_delete=models.CASCADE)
-    lot = models.ForeignKey(Lot, related_name="inventories", on_delete=models.CASCADE)  # Linking to a specific lot
-    quantity = models.IntegerField()
+    product_variant = models.ForeignKey(ProductVariant, related_name="inventories", on_delete=models.CASCADE,  null=True, 
+    blank=True)
+    lot = models.ForeignKey(ProductLot, on_delete=models.CASCADE, null=True, blank=True)
+    quantity = models.PositiveIntegerField()
     added_at = models.DateTimeField(default=timezone.now)
     updated_at = models.DateTimeField(auto_now=True) 
 
     class Meta:
-        unique_together = ('warehouse', 'section', 'product', 'lot')  # Prevent duplicate inventory entries
-        indexes = [
+        unique_together = ('lot', 'warehouse', 'section')
+
+    indexes = [
             models.Index(fields=['product', 'warehouse']),
-        ]
+    ]
 
     def __str__(self):
-        return f"{self.product.name} in {self.warehouse.name} (Lot {self.lot.id})"
+        return f"{self.product.name} in {self.warehouse.name}"
+    
+    def compute_total_quantity(self):
+        if self.warehouse.warehouse_type == 'general':
+            return sum(
+                lot.quantity
+                for variant in self.product.variants.all()
+                for lot in variant.lots.all()
+            )
+        else:
+            return self.quantity
+
+    def compute_stock_status(self):
+        if not self.product_variant:
+            return "Out of Stock"
+
+        lots = self.product_variant.lots.all()
+        now = timezone.now().date()
+
+        # Separate non-expired lots
+        non_expired_lots = [lot for lot in lots if not lot.expired_date or lot.expired_date >= now]
+        total_quantity = sum(lot.quantity for lot in non_expired_lots)
+        threshold = self.product.threshold_value or 0
+
+        # If no non-expired lots → Out of Stock (not "Expired" at variant level)
+        if total_quantity <= 0:
+            return "Out of Stock"
+        elif total_quantity <= threshold:
+            return "Low Stock"
+        return "In Stock"
+
+
+
+    def clean(self):
+        if self.quantity < 0:
+            raise ValidationError("Inventory quantity cannot be negative.")
+        if self.tenant != self.warehouse.tenant:
+            raise ValidationError("Inventory warehouse tenant mismatch.")
+        if self.tenant != self.product.tenant:
+            raise ValidationError("Inventory product tenant mismatch.")
+        if self.section.warehouse != self.warehouse:
+            raise ValidationError("Inventory section does not belong to the specified warehouse.")
+        
 
     def deduct_quantity(self, amount):
         """Reduce the quantity by `amount`, raising an error if not enough stock."""
@@ -127,6 +172,11 @@ class Inventory(models.Model):
         # Add quantity back to this inventory (general/admin warehouse)
         self.add_quantity(quantity)
         return store_inventory
+        
+    def save(self, *args, **kwargs):
+        self.clean()
+        super().save(*args, **kwargs)
+
 
 STATUS_PENDING = 'pending'
 STATUS_COMPLETED = 'completed'
@@ -170,23 +220,27 @@ class ProductSection(models.Model):
     def __str__(self):
         return f"{self.product.name} in {self.section.name} ({self.quantity} units)"
 
-class ProductMovement(models.Model):
-    product = models.ForeignKey(Product, on_delete=models.CASCADE)
-    from_section = models.ForeignKey(Section, related_name="movements_from", on_delete=models.CASCADE)
-    to_section = models.ForeignKey(Section, related_name="movements_to", on_delete=models.CASCADE)
+class TransferLog(models.Model):
+    source_inventory = models.ForeignKey(
+        'Inventory', 
+        related_name='transfers_out', 
+        on_delete=models.CASCADE,
+        null=True, blank=True
+    )
+    destination_inventory = models.ForeignKey(
+        'Inventory', 
+        related_name='transfers_in', 
+        on_delete=models.CASCADE,
+        null=True, blank=True
+    )
+    product = models.ForeignKey('products.Product', on_delete=models.CASCADE)
+    product_variant = models.ForeignKey('products.ProductVariant', on_delete=models.CASCADE)
+    lot = models.ForeignKey('products.ProductLot', on_delete=models.CASCADE)
     quantity = models.PositiveIntegerField()
-    movement_date = models.DateTimeField(auto_now_add=True)
-
-    def clean(self):
-        from django.core.exceptions import ValidationError
-        if self.from_section.warehouse != self.to_section.warehouse:
-            raise ValidationError("Both sections must belong to the same warehouse.")
-
-    def save(self, *args, **kwargs):
-        if self.from_section.warehouse != self.to_section.warehouse:
-            raise ValueError("Sections must belong to the same warehouse.")
-        super().save(*args, **kwargs)
-
-    def __str__(self):
-        return f"Moved {self.quantity} of {self.product.name} from {self.from_section.name} to {self.to_section.name}"
+    transferred_at = models.DateTimeField(auto_now_add=True)
+    direction = models.CharField(
+        max_length=20,
+        choices=[('to_store', 'To Store'), ('to_general', 'To General')]
+    )
+    tenant = models.ForeignKey(Client, on_delete=models.CASCADE, related_name="transferlogs")
 

@@ -1,14 +1,13 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views import WarehouseViewSet, SectionViewSet, InventoryViewSet, TransferViewSet, StockRequestViewSet, GeneralWarehouseInventoryViewSet
+from .views import WarehouseViewSet, SectionViewSet, InventoryViewSet, TransferViewSet, StockRequestViewSet
 
 router = DefaultRouter()
 router.register(r'warehouses', WarehouseViewSet, basename='warehouse' )
 router.register(r'sections', SectionViewSet, basename='sections')
-router.register(r'inventories', InventoryViewSet, basename='inventory')
+router.register(r'inventory', InventoryViewSet, basename='inventory')
 router.register(r'transfers', TransferViewSet, basename='transefer')
 router.register(r'stockrequests', StockRequestViewSet, basename='stockrequests')
-router.register(r'general-warehouse-inventory', GeneralWarehouseInventoryViewSet, basename='general_warehouse')
 
 urlpatterns = [
     path('api/', include(router.urls)),
@@ -36,14 +35,10 @@ urlpatterns = [
 # DELETE /api/sections/{id}/delete/ - Delete section
 
 # Inventory URLs:
-
-# POST /api/inventories/add_stock/ Add product to inventory
-
-# GET /api/inventories/list/ - List inventory items
-
-# PUT /api/inventories/{id}/update-product/ - Update inventory product
-
-# DELETE /api/inventories/{id}/delete-product/ - Delete inventory product
+# POST	/inventory/{store_id}/add-inventory/
+# GET	/inventory/{store_id}/inventory/	
+# GET	/inventory/main-inventory/	
+# GET /api/inventory/main-inventory/?exclude_store_id=store_id 
 
 # Transfer URLs:
 
@@ -84,7 +79,4 @@ urlpatterns = [
 
 # POST /api/stockrequests/{id}/confirm/ - Confirm stock request (admin only)
 
-# General Warehouse Inventory URLs:
-
-# GET /api/general-warehouse-inventory/general-warehouse-inventory/ - List inventory in general warehouse
 
