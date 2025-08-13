@@ -158,11 +158,17 @@ class LoginViewSet(viewsets.ViewSet):
             response = Response(response_data, status=status.HTTP_200_OK)
             response.set_cookie(
                 'access_token', access_token,
-                **settings.COOKIE_SETTINGS
+                path='/',
+                samesite='None',      # for cross-origin
+                secure=not settings.DEBUG,  # secure in prod
+                httponly=False,       # JS needs to read it
             )
             response.set_cookie(
                 'refresh_token', str(refresh),
-                **settings.COOKIE_SETTINGS
+                path='/',
+                samesite='None',
+                secure=not settings.DEBUG,
+                httponly=True,        # optional: JS usually doesn't need to read this
             )
             response.set_cookie(
                 'tenant',

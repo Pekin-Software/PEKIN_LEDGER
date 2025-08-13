@@ -224,19 +224,4 @@ TENANT_DOMAIN_MODEL = "customers.Domain"  # Define the tenant domain model
 
 PUBLIC_SCHEMA_URLCONF = 'customers.urls'
 
-if DEBUG:
-    COOKIE_SETTINGS = {
-        'path': '/',
-        'samesite': 'None',   # Must be None for cross-origin
-        'secure': False,      # HTTP, so secure must be False
-        'httponly': False,
-    }
-else:
-    COOKIE_SETTINGS = {
-        'path': '/',
-        'domain': '.pekingledger.store',
-        'samesite': 'None',
-        'secure': True,       # HTTPS required in prod
-        'httponly': True,
-    }
 
