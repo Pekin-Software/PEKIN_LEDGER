@@ -156,28 +156,37 @@ class LoginViewSet(viewsets.ViewSet):
             }
 
             response = Response(response_data, status=status.HTTP_200_OK)
+            # Access token: HttpOnly, secure, accessible across subdomains
             response.set_cookie(
-                'access_token', access_token,
+                'access_token', 
+                access_token,
                 path='/',
-                samesite='None',      # for cross-origin
-                secure=not settings.DEBUG,  # secure in prod
-                httponly=False,       # JS needs to read it
+                domain='.pekingledger.store',  # cross-subdomain
+                samesite='None',               # required for cross-origin
+                secure=True,                    # HTTPS only
+                httponly=True                   # JS cannot read
             )
+
+            # Refresh token: HttpOnly, secure, cross-subdomain
             response.set_cookie(
-                'refresh_token', str(refresh),
+                'refresh_token', 
+                str(refresh),
                 path='/',
-                samesite='None',
-                secure=not settings.DEBUG,
-                httponly=True,        # optional: JS usually doesn't need to read this
-            )
-            response.set_cookie(
-                'tenant',
-                tenant_domain, 
                 domain='.pekingledger.store',
                 samesite='None',
-                secure=not settings.DEBUG,
-                httponly=False,
-                path='/'
+                secure=True,
+                httponly=True
+            )
+
+            # Tenant info: not sensitive, JS can read it
+            response.set_cookie(
+                'tenant', 
+                tenant_domain,
+                path='/',
+                domain='.pekingledger.store',
+                samesite='None',
+                secure=True,
+                httponly=False  # JS may need this
             )
 
            
