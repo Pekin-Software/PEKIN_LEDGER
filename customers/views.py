@@ -2,6 +2,7 @@ from rest_framework.response import Response
 from rest_framework import viewsets, status, permissions
 from .models import Domain, User
 from stores.models import Employee
+from finance.models import ExchangeRate
 from .serializers import UserSerializer
 from django.contrib.auth import authenticate
 from rest_framework.decorators import action
@@ -72,13 +73,14 @@ class UserViewSet(viewsets.ModelViewSet):
   
 class LoginViewSet(viewsets.ViewSet):
     # Dynamic cookie settings based on DEBUG
-    cookie_settings = {
-            'path': '/',
-            'domain': '.pekingledger.store',
-            'samesite': 'None',
-            'secure': True,
-        }
-    
+    # cookie_settings = {
+    #         'path': '/',
+    #         'domain': '.pekingledger.store',
+    #         'samesite': 'None',
+    #         'secure': True,
+    #     }
+
+
     @method_decorator(csrf_exempt)
     @action(detail=False, methods=["post"])
     def login(self, request):
@@ -109,62 +111,86 @@ class LoginViewSet(viewsets.ViewSet):
                 logger.error(f"Domain not found for tenant: {user.domain}")
                 return Response({"error": "Tenant domain not found"}, status=status.HTTP_400_BAD_REQUEST)
 
+            # try:
+            #     with schema_context(user.domain.schema_name):
+            #         store_employee = Employee.objects.get(user=user)
+            #         store_id = store_employee.store.id
+            # except Employee.DoesNotExist:
+            #     store_id = None
+
+            #     exchange_rate = ExchangeRate.objects.filter(tenant=user.domain).order_by('-effective_date').first()
+            #     latest_usd_rate = exchange_rate.usd_rate if exchange_rate else None
+
             try:
                 with schema_context(user.domain.schema_name):
-                    store_employee = Employee.objects.get(user=user)
-                    store_id = store_employee.store.id
-            except Employee.DoesNotExist:
-                store_id = None
-                logger.warning(f"No store association found for user {user.username}")
+                    # Default values
+                    store_id = None
+                    latest_usd_rate = None
 
+                    # Store lookup
+                    try:
+                        store_employee = Employee.objects.get(user=user)
+                        store_id = store_employee.store.id
+                    except Employee.DoesNotExist:
+                        logger.warning(f"No store association found for user {user.username}")
+
+                    # Exchange rate lookup
+                    exchange_rate = ExchangeRate.objects.filter(tenant=user.domain).order_by('-effective_date').first()
+                    if exchange_rate:
+                        latest_usd_rate = exchange_rate.usd_rate
+            except Exception as e:
+                logger.error(f"Error fetching tenant-specific data: {str(e)}")
+                store_id = None
+                latest_usd_rate = None
+                
             response_data = {
                 "id": user.id,
                 "role": user.position,
                 "tenant_domain": tenant_domain,
                 "user": user.username,
                 "access_token": access_token,
+                # "refresh_token": RefreshToken
+                "business_name": user.domain.business_name,
                 "store_id": store_id, 
-                
+                "exchange_rate": latest_usd_rate
             }
 
             response = Response(response_data, status=status.HTTP_200_OK)
-            response.set_cookie('access_token', access_token, **self.cookie_settings)
-            response.set_cookie('refresh_token', str(refresh), **self.cookie_settings)
+            response.set_cookie(
+                'access_token', access_token,
+                **settings.COOKIE_SETTINGS
+            )
+            response.set_cookie(
+                'refresh_token', str(refresh),
+                **settings.COOKIE_SETTINGS
+            )
 
+           
             return response
 
         except Exception as e:
             logger.error(f"Login failed: {str(e)}")
-            logger.error(traceback.format_exc())
             return Response({"error": "Internal server error"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
         
     @method_decorator(csrf_exempt)
     @action(detail=False, methods=["post"])
     def logout(self, request):
-        refresh_token = request.COOKIES.get("refresh_token")
-
-        # Only include parameters supported by delete_cookie
-        cookie_settings = {
-            'path': '/',
-            'domain': '.pekingledger.store', 
-            'samesite': 'None',
-        }
-
-        if not refresh_token:
-            return Response({"error": "Refresh token not provided"}, status=status.HTTP_400_BAD_REQUEST)
-
-        try:
-            token = RefreshToken(refresh_token)
-            token.blacklist()
-        except TokenError as e:
-            return Response({"error": f"Invalid token: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
-        except Exception as e:
-            return Response({"error": f"Unexpected error: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
         response = Response({"message": "Logout successful"}, status=status.HTTP_200_OK)
-        response.delete_cookie("access_token", **cookie_settings)
-        response.delete_cookie("refresh_token", **cookie_settings)
+        response.delete_cookie(
+            "access_token",
+            path=settings.COOKIE_SETTINGS.get("path", "/"),
+            domain=settings.COOKIE_SETTINGS.get("domain"),
+            samesite=settings.COOKIE_SETTINGS.get("samesite"),
+        )
+        response.delete_cookie(
+            "refresh_token",
+            path=settings.COOKIE_SETTINGS.get("path", "/"),
+            domain=settings.COOKIE_SETTINGS.get("domain"),
+            samesite=settings.COOKIE_SETTINGS.get("samesite"),
+        )
+
+
         return response
 
         

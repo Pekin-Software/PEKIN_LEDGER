@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from customers.models import Client
 from .models import Sale, SaleDetail, ExchangeRate, Payment, Refund, SaleCancellationLog
 
 class SaleDetailSerializer(serializers.ModelSerializer):
@@ -6,11 +7,21 @@ class SaleDetailSerializer(serializers.ModelSerializer):
     product_name = serializers.CharField(source='product.product_name', read_only=True)
     product_currency = serializers.CharField(source='product.currency', read_only=True)
     total = serializers.SerializerMethodField()
+    variant_attributes = serializers.SerializerMethodField()
     
     class Meta:
         model = SaleDetail
-        fields = ['product_name', 'lot_sku', 'quantity_sold', 'price_at_sale', 'product_currency', 'total']
+        fields = ['product_name', 'lot_sku', 'quantity_sold', 'price_at_sale', 'product_currency', 'total', 'variant_attributes']
 
+
+    def get_variant_attributes(self, obj):
+        if obj.product_variant:
+            return [
+                {"name": attr.name, "value": attr.value} 
+                for attr in obj.product_variant.attributes.all()
+            ]
+        return []
+    
     def get_total(self, obj):
         return (obj.quantity_sold or 0) * (obj.price_at_sale or 0)
 
@@ -32,14 +43,22 @@ class SaleSerializer(serializers.ModelSerializer):
     payments = PaymentSerializer(many=True, read_only=True) 
     sale_date = serializers.SerializerMethodField()
     cashier_id = serializers.SerializerMethodField()
-
+    
     class Meta:
         model = Sale
         fields = ['receipt_number', 'store_name', 'cashier_id', 'sale_date', 'sale_details', 'total_usd',
                  'total_lrd', 'currency', 'exchange_rate_used', 'grand_total', 'payments', 'payment_status', 'amount_paid', 'balance_due']
         read_only_fields = ['receipt_number', 'grand_total', 'amount_paid', 'balance_due', 'sale_date', 'total_usd',
                  'total_lrd','store_name', 'cashier_id', 'sale_details', 'exchange_rate_used', 'payment_status']
+        extra_kwargs = {
+            'tenant': {'required': True}
+        }
     
+    def create(self, validated_data):
+        # Example: get tenant from request user if it's a tenant-bound system
+        validated_data['tenant'] = self.context['request'].tenant
+        return super().create(validated_data)
+
     def get_sale_date(self, obj):
         # Format: July 23, 2025 @ 14:26:22
         return obj.sale_date.strftime("%B %d, %Y @ %H:%M:%S")  if obj.sale_date else None

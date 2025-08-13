@@ -26,6 +26,7 @@ class Client(TenantMixin):
     def get_domain(self):
         domain = Domain.objects.filter(tenant=self).first()
         return domain.domain if domain else None
+
 class Domain(DomainMixin):
    pass
 

@@ -1,6 +1,7 @@
 from django.db import models, transaction
 from stores.models import Store
-from products.models import Product, Lot
+from finance.models import ExchangeRate
+from products.models import Product, ProductLot, ProductVariant
 from inventory.models import Inventory, Warehouse
 from django.utils import timezone
 from django.db.models import Sum, F, DecimalField, ExpressionWrapper, Case, When
@@ -10,6 +11,7 @@ from decimal import Decimal
 from django.core.exceptions import ValidationError
 
 class Sale(models.Model):
+    order = models.ForeignKey('order.Order', null=True, blank=True, on_delete=models.SET_NULL, related_name='sales')
     tenant = models.ForeignKey(Client, on_delete=models.CASCADE, related_name="sales")
     store = models.ForeignKey(Store, related_name='sales', on_delete=models.CASCADE)
     sale_date = models.DateTimeField(default=timezone.now)
@@ -38,30 +40,6 @@ class Sale(models.Model):
 
     class Meta:
         unique_together = ('tenant', 'store', 'receipt_number')
-
-    def save(self, *args, **kwargs):
-        if self.pk:
-            old_receipt = Sale.objects.filter(pk=self.pk).values_list('receipt_number', flat=True).first()
-            if old_receipt and self.receipt_number != old_receipt:
-                raise ValueError("Editing receipt_number is not allowed.")
-
-        if not self.exchange_rate_used:
-            latest_rate = ExchangeRate.objects.filter(tenant=self.tenant).order_by('-effective_date').first()
-            if not latest_rate:
-                raise ValueError("No exchange rate found for tenant.")
-            self.exchange_rate_used = latest_rate.usd_rate
-
-        # Recompute grand total
-        if self.currency == 'USD':
-            self.grand_total = self.total_usd
-            if self.total_lrd > 0:
-                self.grand_total += (self.total_lrd / self.exchange_rate_used)
-        else:
-            self.grand_total = self.total_lrd
-            if self.total_usd > 0:
-                self.grand_total += (self.total_usd * self.exchange_rate_used)
-
-        super().save(*args, **kwargs)
 
     @staticmethod
     def generate_receipt_number(tenant, store):
@@ -164,7 +142,6 @@ class Sale(models.Model):
                     "product_name": detail.product.product_name,
                     "quantity_cancelled": detail.quantity_sold,
                     "unit_price": str(detail.price_at_sale),
-                    "currency": detail.currency,
                     "refund_amount": str(detail.quantity_sold * detail.price_at_sale),
                 }
                 for detail in self.sale_details.all()
@@ -211,7 +188,6 @@ class Sale(models.Model):
                 "product_name": detail.product.product_name,
                 "quantity_cancelled": cancel_qty,
                 "unit_price": str(detail.price_at_sale),
-                "currency": detail.currency,
                 "refund_amount": str(refund_amount),
             }
 
@@ -307,6 +283,11 @@ class Sale(models.Model):
     @staticmethod
     @transaction.atomic
     def process_sale(tenant, store, products_with_qty, payments, cashier=None, sale_currency='USD'):
+        if tenant is None:
+            raise ValueError("Tenant must be provided.")
+
+        print(f"[process_sale] Tenant received: {tenant} (ID: {getattr(tenant, 'id', None)})")  # Log tenant info
+
         if store.tenant_id != tenant.id:
             raise ValueError("Store does not belong to this tenant.")
 
@@ -337,18 +318,25 @@ class Sale(models.Model):
 
         for item in products_with_qty:
             product = item['product']
+            variant = item.get('variant')
             if product.tenant_id != tenant.id:
                 raise ValueError(f"Product {product.product_name} does not belong to this tenant.")
-            latest_lot = product.lots.order_by('-purchase_date').first()
+            if not variant:
+                raise ValueError(f"Variant is required for product {product.product_name}.")
+            if variant.product_id != product.id:
+                raise ValueError(f"Variant does not belong to product {product.product_name}")
+            latest_lot = variant.lots.order_by('-purchase_date').first()
             display_price = latest_lot.retail_selling_price if latest_lot else 0
             quantity_sold = item['quantity']
             product_currency = product.currency
+            
 
             price = display_price
 
             store_inventory = Inventory.objects.filter(
                 warehouse=warehouse,
                 product=product,
+                product_variant=variant if variant else None,
                 quantity__gt=0,
                 tenant=tenant
             ).select_related('lot').order_by('lot__purchase_date')
@@ -376,11 +364,12 @@ class Sale(models.Model):
                 line_total = qty * price
                 SaleDetail.objects.create(
                     sale=sale,
-                    product=product,
+                    product=lot.variant.product,
+                    product_variant=lot.variant,
                     lot=lot,
                     quantity_sold=qty,
                     price_at_sale=price,
-                    currency=product_currency
+                    # currency=product_currency
                 )
                 if product_currency == 'USD':
                     total_usd += line_total
@@ -420,40 +409,58 @@ class Sale(models.Model):
     def total_paid(self):
         return sum(p.amount - p.refunded_amount for p in self.payments.all())
 
+    def save(self, *args, **kwargs):
+        if self.pk:
+            old_receipt = Sale.objects.filter(pk=self.pk).values_list('receipt_number', flat=True).first()
+            if old_receipt and self.receipt_number != old_receipt:
+                raise ValueError("Editing receipt_number is not allowed.")
+
+        if not self.exchange_rate_used:
+            latest_rate = ExchangeRate.objects.filter(tenant=self.tenant).order_by('-effective_date').first()
+            if not latest_rate:
+                raise ValueError("No exchange rate found for tenant.")
+            self.exchange_rate_used = latest_rate.usd_rate
+
+        # Recompute grand total
+        if self.currency == 'USD':
+            self.grand_total = self.total_usd
+            if self.total_lrd > 0:
+                self.grand_total += (self.total_lrd / self.exchange_rate_used)
+        else:
+            self.grand_total = self.total_lrd
+            if self.total_usd > 0:
+                self.grand_total += (self.total_usd * self.exchange_rate_used)
+
+        super().save(*args, **kwargs)
+
 
 class SaleDetail(models.Model):
     sale = models.ForeignKey(Sale, related_name="sale_details", on_delete=models.CASCADE)
     product = models.ForeignKey(Product, on_delete=models.CASCADE)
-    lot = models.ForeignKey(Lot, null=True, blank=True, on_delete=models.CASCADE)
+    product_variant = models.ForeignKey(ProductVariant, null=True, blank=True, on_delete=models.CASCADE)
+    lot = models.ForeignKey(ProductLot, null=True, blank=True, on_delete=models.CASCADE)
+    order_item = models.ForeignKey('order.OrderItem', null=True, blank=True, on_delete=models.SET_NULL)
+
     quantity_sold = models.IntegerField()
     price_at_sale = models.DecimalField(max_digits=10, decimal_places=2)
-    currency = models.CharField(max_length=3, choices=[('USD', 'USD'), ('LRD', 'LRD')], default='LRD')  # from product
     cancelled_quantity = models.IntegerField(default=0)
 
     @property
     def active_quantity(self):
         return self.quantity_sold - self.cancelled_quantity
     
+    @property
+    def variant(self):
+        return self.lot.variant if self.lot else None
+
+    @property
+    def variant_attributes(self):
+        if self.variant:
+            return self.product_variant.attributes
+        return {}
+    
     def __str__(self):
-        return f"{self.product.name} - Lot {self.lot.id} - {self.quantity_sold} units in sale {self.sale.id}"
-
-class ExchangeRate(models.Model):
-    tenant = models.ForeignKey(Client, on_delete=models.CASCADE, related_name="exchange_rates")
-    usd_rate = models.DecimalField(max_digits=10, decimal_places=2)
-    effective_date = models.DateField(editable=False)
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        unique_together = ('tenant', 'effective_date')
-        ordering = ['-effective_date']
-
-    def save(self, *args, **kwargs):
-        if not self.pk:  # Only set on creation
-            self.effective_date = timezone.now().date()
-        super().save(*args, **kwargs)
-
-    def __str__(self):
-        return f" {self.tenant.name} USD Rate: {self.usd_rate} (Effective: {self.effective_date})"
+        return f"{self.product.product_name} - Lot {self.lot.id} - {self.quantity_sold} units in sale {self.sale.id}"
 
 class Refund(models.Model):
     payment = models.ForeignKey('Payment', related_name='refunds', on_delete=models.CASCADE)

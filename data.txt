@@ -55,35 +55,42 @@ domain.save()
   "phone_number": "+231775441329"
 }
 
-
+Add a product and variants
 {
-  "product_name": "Example Product",
+  "product_name": "Paracetamol",
   "category": 1,
-  "unit": "pcs",
-  "threshold_value": 10,
-  "attributes": [
+  "unit": "Box",
+  "threshold_value": 50,
+  "currency": "USD",
+  "variants": [
     {
-      "name": "Color",
-      "value": "Red"
-    },
-    {
-      "name": "Size",
-      "value": "Medium"
-    }
-  ],
-  "lots": [
-    {
-      "purchase_date": "2025-06-01",
-      "quantity": 100,
-      "expired_date": "2026-06-01",
-      "wholesale_purchase_price": 50.0,
-      "retail_purchase_price": 70.0,
-      "wholesale_quantity": 10.0,
-      "wholesale_selling_price": 60.0,
-      "retail_selling_price": 90.0
+      "price": 20.50,
+      "attributes": [
+        {"name": "Dosage", "value": "500mg"},
+        {"name": "Form", "value": "Tablet"}
+      ],
+      "lots": [
+        {"quantity": 100, "purchase_price": 10.00, "retail_selling_price": 15.00}
+      ]
     }
   ]
 }
+Restocking
+{
+  "variant_id": 12,
+  "lots": [
+    {
+      "lot_number": "BATCH-2025-01",
+      "quantity": 50,
+      "purchase_price": 10.5,
+      "wholesale_selling_price": 12,
+      "retail_selling_price": 15,
+      "purchase_date": "2025-08-04",
+      "expired_date": "2025-12-31"
+    }
+  ]
+}
+
 
 Add Inventory Format
 [
@@ -117,27 +124,37 @@ Updating lot(can accept more then one value)
   {
     "quantity": 150
   }
-Restocking 
+
+
+Tasks To Complete 
+1. Display overview of Inventory - https://pekingroup.pekingledger.store/api/store/overview/ - Completed for Main Inventory
+3. Remove from store - https://pekingroup.pekingledger.store/api/store/1/return-inventory/
+7. Restock Product - https://pekingroup.pekingledger.store/api/products/1/restock/
+8. Update Product Value - https://pekingroup.pekingledger.store/api/lots/3/update/
+
+Sales sample data
 {
-  "lot": {
-    "sku": "SKU-RESTOCK-001",
-    "quantity": 100,
-    "purchase_date": "2025-07-01",
-    "wholesale_quantity": 10,
-    "wholesale_purchase_price": "45.00",
-    "retail_purchase_price": "50.00",
-    "wholesale_selling_price": "60.00",
-    "retail_selling_price": "70.00",
-    "expired_date": "2026-01-01"
-  }
+  "store_id": 1,
+  "products": [
+    { "product_id": 3, "quantity_sold": 8 }
+  ],
+  "payment_method": "Cash"
 }
 
- 
-Tasks To Complete 
-1. Display overview of Inventory - https://pekingroup.pekingledger.store/api/store/overview/
-2. Assign to store - https://pekingroup.pekingledger.store/api/store/1/add-inventory/
-3. Remove from store - https://pekingroup.pekingledger.store/api/store/1/return-inventory/
-4. List all inventory in store - https://pekingroup.pekingledger.store/api/store/1/inventory/
-5. List all inventory in Main store - https://pekingroup.pekingledger.store/api/store/main-inventory/
-6. Restock Product - https://pekingroup.pekingledger.store/api/products/1/restock/
-7. Update Product Value - https://pekingroup.pekingledger.store/api/lots/3/update/
+Tasks 
+
+1. https://jackent.pekingledger.store/api/rates/add-rate/ 
+  Json file 
+  {
+    "usd_rate": 200
+  }
+2. https://jackent.pekingledger.store/api/sales/sale/ add sale
+{
+  "store_id": 1,
+  "products": [
+    { "product_id": 2, "variant_id": 3, "quantity_sold": 1},
+    { "product_id": 4, "variant_id": 3, "quantity_sold": 1},
+  ],
+  "currency": "LRD"
+}
+3. https://jackent.pekingledger.store/api/sales/listsales/

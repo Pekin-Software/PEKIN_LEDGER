@@ -62,6 +62,8 @@ TENANT_APPS = [
     "records",
     "stores",
     "sales",
+    "order",
+    "finance",
 ]
 
 INSTALLED_APPS = SHARED_APPS + [app for app in TENANT_APPS if app not in SHARED_APPS]
@@ -103,6 +105,7 @@ CORS_ALLOW_CREDENTIALS = True
 
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
+    "http://testing022.client1.localhost:8000",
     "https://pekingledger.store",
     "https://app.pekingledger.store",
 ]
@@ -144,25 +147,25 @@ MEDIA_ROOT = BASE_DIR / 'media'
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django_tenants.postgresql_backend',  
-        'NAME': 'pekin_ledger_db',
-        'USER': 'pekin',
-        'PASSWORD': 'ledger@2025',
-        'HOST': 'localhost', 
-        'PORT': '5432',
-    }
-}
-
-
 # DATABASES = {
-#     'default': dj_database_url.config(
-#         default=config('DATABASE_URL'),
-#         conn_max_age=600,
-#         engine='django_tenants.postgresql_backend'
-#     )
+#     'default': {
+#         'ENGINE': 'django_tenants.postgresql_backend',  
+#         'NAME': 'pekin_ledger_db',
+#         'USER': 'pekin',
+#         'PASSWORD': 'ledger@2025',
+#         'HOST': 'localhost', 
+#         'PORT': '5432',
+#     }
 # }
+
+
+DATABASES = {
+    'default': dj_database_url.config(
+        default=config('DATABASE_URL'),
+        conn_max_age=600,
+        engine='django_tenants.postgresql_backend'
+    )
+}
 
 
 DATABASE_ROUTERS = (
@@ -220,3 +223,20 @@ TENANT_MODEL = "customers.Client"  # Define the tenant model
 TENANT_DOMAIN_MODEL = "customers.Domain"  # Define the tenant domain model
 
 PUBLIC_SCHEMA_URLCONF = 'customers.urls'
+
+if DEBUG:
+    COOKIE_SETTINGS = {
+        'path': '/',
+        'samesite': 'None',   # Must be None for cross-origin
+        'secure': False,      # HTTP, so secure must be False
+        'httponly': False,
+    }
+else:
+    COOKIE_SETTINGS = {
+        'path': '/',
+        'domain': '.pekingledger.store',
+        'samesite': 'None',
+        'secure': True,       # HTTPS required in prod
+        'httponly': True,
+    }
+

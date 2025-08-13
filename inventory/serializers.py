@@ -23,7 +23,7 @@ class ProductNestedSerializer(serializers.ModelSerializer):
         model = Inventory.product.field.related_model
         fields = [
             'id', 'product_name', 'unit', 'threshold_value', 'product_image_url',
-            'category'
+            'category', 'currency'
         ]
 
     def get_product_image_url(self, obj):

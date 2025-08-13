@@ -5,7 +5,7 @@ from rest_framework.permissions import IsAuthenticated
 from django.db import transaction
 from .models import Sale, SaleReport, ExchangeRate, Payment, Refund
 from .serializers import SaleSerializer, SaleReportFilterSerializer, ExchangeRateSerializer, RefundSerializer
-from products.models import Product
+from products.models import Product,ProductVariant
 from stores.models import Store
 from django.http import HttpResponse
 from reportlab.lib.pagesizes import A4
@@ -59,13 +59,19 @@ class SaleViewSet(viewsets.ModelViewSet):
         try:
             for item in products_data:
                 product_id = item.get('product_id')
+                variant_id = item.get('variant_id')
                 quantity_sold = item.get('quantity_sold')
 
                 if not product_id or not quantity_sold:
                     raise ValueError("Each product must have 'product_id' and 'quantity_sold'.")
 
                 product = Product.objects.get(id=product_id,  tenant=tenant)
-                products_with_qty.append({'product': product, 'quantity': quantity_sold})
+
+                variant = None
+                if variant_id:
+                    variant = ProductVariant.objects.get( id=variant_id, product=product)
+
+                products_with_qty.append({'product': product, 'variant': variant, 'quantity': quantity_sold})
 
                   # Validate payments
             valid_methods = dict(Payment.PAYMENT_METHOD_CHOICES).keys()
@@ -87,7 +93,11 @@ class SaleViewSet(viewsets.ModelViewSet):
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
         serializer = self.get_serializer(sale)
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response({
+        "success": True,
+        "sale": serializer.data
+        }, status=status.HTTP_201_CREATED)
+    
     
     @action(detail=False, methods=['get'], url_path='listsales')
     @transaction.atomic
