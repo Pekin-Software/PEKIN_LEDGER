@@ -164,6 +164,15 @@ class LoginViewSet(viewsets.ViewSet):
                 'refresh_token', str(refresh),
                 **settings.COOKIE_SETTINGS
             )
+            response.set_cookie(
+                'tenant',
+                tenant_domain, 
+                domain='.pekingledger.store',
+                samesite='None',
+                secure=not settings.DEBUG,
+                httponly=False,
+                path='/'
+            )
 
            
             return response
