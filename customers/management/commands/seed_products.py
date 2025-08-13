@@ -48,7 +48,7 @@ def seed_tenant_products(tenant: Client):
     # Pick the first category for this tenant
     category = Category.objects.filter(tenant=tenant).first()
     if not category:
-        print(f"Skipping tenant '{tenant.name}' – no category found.")
+        print(f"Skipping tenant '{tenant.schema_name}' – no category found.")
         return
 
     for product_data in PRODUCTS_CONFIG:
@@ -80,9 +80,9 @@ def seed_tenant_products(tenant: Client):
 def seed_all_tenants():
     tenants = Client.objects.all()
     for tenant in tenants:
-        print(f"Seeding tenant: {tenant.name}")
+        print(f"Seeding tenant: {tenant.schema_name}")
         seed_tenant_products(tenant)
-        print(f"Finished seeding tenant: {tenant.name}")
+        print(f"Finished seeding tenant: {tenant.schema_name}")
 
 
 class Command(BaseCommand):
