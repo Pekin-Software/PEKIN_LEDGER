@@ -177,19 +177,6 @@ class LoginViewSet(viewsets.ViewSet):
                 secure=True,
                 httponly=True
             )
-
-            # Tenant info: not sensitive, JS can read it
-            response.set_cookie(
-                'tenant', 
-                tenant_domain,
-                path='/',
-                domain='.pekingledger.store',
-                samesite='None',
-                secure=True,
-                httponly=False  # JS may need this
-            )
-
-           
             return response
 
         except Exception as e:
