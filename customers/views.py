@@ -111,16 +111,6 @@ class LoginViewSet(viewsets.ViewSet):
                 logger.error(f"Domain not found for tenant: {user.domain}")
                 return Response({"error": "Tenant domain not found"}, status=status.HTTP_400_BAD_REQUEST)
 
-            # try:
-            #     with schema_context(user.domain.schema_name):
-            #         store_employee = Employee.objects.get(user=user)
-            #         store_id = store_employee.store.id
-            # except Employee.DoesNotExist:
-            #     store_id = None
-
-            #     exchange_rate = ExchangeRate.objects.filter(tenant=user.domain).order_by('-effective_date').first()
-            #     latest_usd_rate = exchange_rate.usd_rate if exchange_rate else None
-
             try:
                 with schema_context(user.domain.schema_name):
                     # Default values
@@ -149,34 +139,12 @@ class LoginViewSet(viewsets.ViewSet):
                 "tenant_domain": tenant_domain,
                 "user": user.username,
                 "access_token": access_token,
-                # "refresh_token": RefreshToken
                 "business_name": user.domain.business_name,
                 "store_id": store_id, 
                 "exchange_rate": latest_usd_rate
             }
 
             response = Response(response_data, status=status.HTTP_200_OK)
-            # Access token: HttpOnly, secure, accessible across subdomains
-            response.set_cookie(
-                'access_token', 
-                access_token,
-                path='/',
-                domain='.pekingledger.store',  # cross-subdomain
-                samesite='None',               # required for cross-origin
-                secure=True,                    # HTTPS only
-                httponly=True                   # JS cannot read
-            )
-
-            # Refresh token: HttpOnly, secure, cross-subdomain
-            response.set_cookie(
-                'refresh_token', 
-                str(refresh),
-                path='/',
-                domain='.pekingledger.store',
-                samesite='None',
-                secure=True,
-                httponly=True
-            )
             return response
 
         except Exception as e:
