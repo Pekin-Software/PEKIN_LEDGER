@@ -27,7 +27,7 @@ SECRET_KEY = 'django-insecure-_!gb#a3e10(y9ur98k1h(pc2(w&+2*+v+jj*86s#lj2#)$xb86
 
 # SECURITY WARNING: don't run with debug turned on in production!
 # DEBUG = False
-DEBUG = config('DEBUG', default=True, cast=bool)
+DEBUG = config('DEBUG', default=False, cast=bool)
 
 # ALLOWED_HOSTS = ["https://pekin-ledger.onrender.com", ]
 ALLOWED_HOSTS = [
@@ -224,4 +224,13 @@ TENANT_DOMAIN_MODEL = "customers.Domain"  # Define the tenant domain model
 
 PUBLIC_SCHEMA_URLCONF = 'customers.urls'
 
+#cookies setting 
+# Parent domain for all tenants (leading dot is important)
+TENANT_COOKIE_DOMAIN = ".pekingledger.store"
 
+# Use HTTPS in production, required for SameSite=None
+SECURE_COOKIE = True  # set to False only in local/dev if necessary
+
+# Optional: keep these aligned with your CSRF/CORS setup
+CSRF_COOKIE_SECURE = SECURE_COOKIE
+SESSION_COOKIE_SECURE = SECURE_COOKIE
