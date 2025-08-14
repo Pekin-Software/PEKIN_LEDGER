@@ -417,27 +417,29 @@ class LoginViewSet(viewsets.ViewSet):
     @method_decorator(csrf_exempt)
     @action(detail=False, methods=["post"])
     def logout(self, request):
-        try:
-            refresh_token = request.COOKIES.get("refresh_token") or request.data.get("refresh_token")
-            if not refresh_token:
-                return Response({"error": "Refresh token is required."}, status=status.HTTP_400_BAD_REQUEST)
+        refresh_token = request.COOKIES.get("refresh_token") or request.data.get("refresh_token")
+        
+        # Optional: read access token from header
+        auth_header = request.headers.get("Authorization")
+        access_token = None
+        if auth_header and auth_header.startswith("Bearer "):
+            access_token = auth_header.split(" ")[1]
 
+        # Only refresh token is blacklisted
+        if refresh_token:
             try:
                 token = RefreshToken(refresh_token)
                 token.blacklist()
             except Exception as e:
-                logger.warning(f"Invalid refresh token during logout: {str(e)}")
+                logger.warning(f"Invalid refresh token: {str(e)}")
 
-            resp = Response({"message": "Logout successful"}, status=status.HTTP_200_OK)
-            cookie_domain = ".pekingledger.store" if not settings.DEBUG else None
-            resp.delete_cookie(key="refresh_token", domain=cookie_domain, path="/")
-
-            return resp
-
-        except Exception as e:
-            logger.error(f"Logout failed: {str(e)}")
-            return Response({"error": "Internal server error"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
+        resp = Response({"message": "Logout successful"}, status=status.HTTP_200_OK)
+        
+        cookie_domain = ".pekingledger.store" if not settings.DEBUG else None
+        resp.delete_cookie("refresh_token", domain=cookie_domain, path="/")
+        resp.delete_cookie("access_token", domain=cookie_domain, path="/")
+        
+        return resp
 
 
 
