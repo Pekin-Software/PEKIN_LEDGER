@@ -81,3 +81,38 @@ testing022.client1.localhost:8000/api/products/42/restock-product/
   ]
 }
 
+import boto3
+import json
+import os
+
+def get_secret():
+    secret_name = "pekinledger-db-credentials"
+    region_name = "us-east-1"
+
+    session = boto3.session.Session()
+    client = session.client(service_name="secretsmanager", region_name=region_name)
+
+    get_secret_value_response = client.get_secret_value(SecretId=secret_name)
+    secret = json.loads(get_secret_value_response["SecretString"])
+
+    return secret
+
+db_secret = get_secret()
+
+DATABASES = {
+    "default": {
+        "ENGINE": "django.db.backends.postgresql",
+        "NAME": db_secret["dbname"],
+        "USER": db_secret["username"],
+        "PASSWORD": db_secret["password"],
+        "HOST": db_secret["host"],
+        "PORT": db_secret["port"],
+    }
+}
+
+
+DB_NAME=pekinledger
+DB_USER=admin
+DB_PASSWORD=supersecret
+DB_PROXY_ENDPOINT=pekinledger-proxy.proxy-cgzs8geqks83.us-east-1.rds.amazonaws.com
+DB_PORT=5432
