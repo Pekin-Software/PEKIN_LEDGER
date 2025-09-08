@@ -2,43 +2,50 @@ name: Deploy to Elastic Beanstalk
 
 on:
   push:
-    branches:
-      - main   # deploy only on pushes to main
+    branches: [ "main" ]
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v3
 
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
       - name: Zip source code
-        run: zip -r app.zip .
+        run: |
+          zip -r app.zip . -x "*.git*" -x "*.github*" -x "tests/*" -x "*.venv*" -x "node_modules/*"
 
       - name: Upload to S3
         run: |
-          aws s3 cp app.zip s3://pekinledger-eb-deploy/app-${{ github.sha }}.zip \
-            --region us-east-1
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws s3 cp app.zip s3://pekinledger-eb-deploy/app-${{ github.sha }}.zip
 
       - name: Create EB Application Version
         run: |
           aws elasticbeanstalk create-application-version \
-            --application-name PekinLedger-API \
-            --version-label ${{ github.sha }} \
-            --source-bundle S3Bucket="pekinledger-eb-deploy",S3Key="app-${{ github.sha }}.zip" \
-            --region us-east-1
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+            --application-name PEKINLEDGER \
+            --version-label "${{ github.ref_name }}-${{ github.sha }}" \
+            --source-bundle S3Bucket="pekinledger-eb-deploy",S3Key="app-${{ github.sha }}.zip"
 
       - name: Deploy to Elastic Beanstalk
         run: |
           aws elasticbeanstalk update-environment \
-            --environment-name PekinLedger-API-env \
-            --version-label ${{ github.sha }} \
-            --region us-east-1
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+            --environment-name PEKINLEDGER-env \
+            --version-label "${{ github.ref_name }}-${{ github.sha }}"
+            
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run collectstatic
+        run: |
+          python manage.py collectstatic --noinput
+
+      - name: Sync static files to S3
+        run: |
+          aws s3 sync staticfiles/ s3://pekinledger-static/ --delete
