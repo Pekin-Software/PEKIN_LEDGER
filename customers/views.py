@@ -72,7 +72,6 @@ class UserViewSet(viewsets.ModelViewSet):
         """Ensure users are created within the correct tenant schema."""
         serializer.save(domain=self.request.user.domain)
 
-
 class CookieTokenRefreshView(TokenRefreshView):
     permission_classes = [AllowAny]  # public; relies on cookie
 

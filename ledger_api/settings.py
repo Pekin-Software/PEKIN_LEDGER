@@ -28,7 +28,7 @@ DEBUG = os.environ.get('DEBUG', 'False') == 'True'
 #     ".localhost"
 #     ]
 
-ALLOWED_HOSTS = os.environ.get("ALLOWED_HOSTS", "*.api.pekinledger.com").split(",")
+ALLOWED_HOSTS = os.environ.get("ALLOWED_HOSTS", "*.api.pekinledger.com", "*.elasticbeanstalk.com").split(",")
 
 
 # Application definition
@@ -153,14 +153,10 @@ MEDIA_ROOT = BASE_DIR / 'media'
 # }
 
 DATABASES = {
-    "default": {
-        "ENGINE": "django_tenants.postgresql_backend",
-        "NAME": os.environ.get("DB_NAME"),
-        "USER": os.environ.get("DB_USER"),
-        "PASSWORD": os.environ.get("DB_PASSWORD"),
-        "HOST": os.environ.get("DB_HOST"),
-        "PORT": os.environ.get("DB_PORT", "5432"),
-    }
+    "default": dj_database_url.config(
+        default=os.environ.get("DATABASE_URL"),
+        engine="django_tenants.postgresql_backend",
+    )
 }
 
 DATABASE_ROUTERS = (

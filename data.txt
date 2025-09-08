@@ -91,7 +91,11 @@ Restocking
   ]
 }
 
+postgres://pekinledger:lD85!|7EzjJ_lOq9p~[zjSoY]UOW@pekinledgerdb.cluster-cgzs8geqks83.us-east-1.rds.amazonaws.com:5432/pekinledgerdb
 
+django-insecure-_!gb#a3e10(y9ur98k1h(pc2(w&+2*+v+jj*86s#lj2#)$xb86
+
+DB_PASSWORD = Lbhf5jxHJa4Kxw7PkmKl
 Add Inventory Format
 [
   {
