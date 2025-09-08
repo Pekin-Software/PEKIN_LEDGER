@@ -1,0 +1,44 @@
+name: Deploy to Elastic Beanstalk
+
+on:
+  push:
+    branches:
+      - main   # deploy only on pushes to main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Zip source code
+        run: zip -r app.zip .
+
+      - name: Upload to S3
+        run: |
+          aws s3 cp app.zip s3://pekinledger-eb-deploy/app-${{ github.sha }}.zip \
+            --region us-east-1
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+      - name: Create EB Application Version
+        run: |
+          aws elasticbeanstalk create-application-version \
+            --application-name PekinLedger-API \
+            --version-label ${{ github.sha }} \
+            --source-bundle S3Bucket="pekinledger-eb-deploy",S3Key="app-${{ github.sha }}.zip" \
+            --region us-east-1
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+      - name: Deploy to Elastic Beanstalk
+        run: |
+          aws elasticbeanstalk update-environment \
+            --environment-name PekinLedger-API-env \
+            --version-label ${{ github.sha }} \
+            --region us-east-1
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
