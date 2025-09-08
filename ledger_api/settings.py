@@ -98,15 +98,15 @@ ROOT_URLCONF = 'ledger_api.urls'
 CORS_ALLOW_CREDENTIALS = True
 
 CORS_ALLOWED_ORIGINS = [
-    "http://localhost:5173",
-    "http://testing022.client1.localhost:8000",
-    "https://pekingledger.store",
-    "https://app.pekingledger.store",
+    # "http://localhost:5173",
+    # "http://testing022.client1.localhost:8000",
+    # "https://pekingledger.store",
+    "https://app.pekingledger.com",
+    "https://api.pekinledger.com",
 ]
 
 CORS_ALLOWED_ORIGIN_REGEXES = [
-    r"^https://.*\.pekingledger\.store$",
-    r"^https://pekingledger\.store$",
+  r"^https:\/\/.*\.api\.pekinledger\.com$",
 ]
 
 CORS_ALLOW_HEADERS = [
