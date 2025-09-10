@@ -22,14 +22,16 @@ SECRET_KEY = os.environ.get("SECRET_KEY", "fallback-secret-for-dev")
 DEBUG = os.environ.get('DEBUG', 'False') == 'True'
 # ALLOWED_HOSTS = ["https://pekin-ledger.onrender.com", ]
 # ALLOWED_HOSTS = [
-#     ".pekingledger.store",
-#     "pekingledger.store", 
+#     "api.pekinledger.com",
+#     "*.api.pekinledger.com,",
+#    "*.elasticbeanstalk.com", 
 #     "localhost", 
 #     ".localhost"
 #     ]
 
-ALLOWED_HOSTS = os.environ.get("ALLOWED_HOSTS", "*.api.pekinledger.com,*.elasticbeanstalk.com").split(",")
-ALLOWED_HOSTS = [host.strip() for host in ALLOWED_HOSTS if host]
+# ALLOWED_HOSTS = os.environ.get("ALLOWED_HOSTS").split(",")
+ALLOWED_HOSTS = os.environ.get("ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
+# ALLOWED_HOSTS = [host.strip() for host in ALLOWED_HOSTS if host]
 
 
 # Application definition
@@ -208,20 +210,20 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.1/howto/static-files/
 
-# STATIC_URL = 'static/'
-# STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
-AWS_STORAGE_BUCKET_NAME = os.environ.get('STATIC_S3_BUCKET', 'pekinledger-eb-deploy')
-AWS_MEDIA_BUCKET_NAME = os.environ.get('MEDIA_S3_BUCKET', 'pekinledger-media')
-AWS_S3_REGION_NAME = os.environ.get('AWS_REGION', 'us-east-1')
+STATIC_URL = 'static/'
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+# AWS_STORAGE_BUCKET_NAME = os.environ.get('STATIC_S3_BUCKET', 'pekinledger-eb-deploy')
+# AWS_MEDIA_BUCKET_NAME = os.environ.get('MEDIA_S3_BUCKET', 'pekinledger-media')
+# AWS_S3_REGION_NAME = os.environ.get('AWS_REGION', 'us-east-1')
 
-AWS_DEFAULT_ACL = None
-AWS_S3_OBJECT_PARAMETERS = {"CacheControl": "max-age=86400"}
+# AWS_DEFAULT_ACL = None
+# AWS_S3_OBJECT_PARAMETERS = {"CacheControl": "max-age=86400"}
 
-STATIC_URL = f"https://{AWS_STORAGE_BUCKET_NAME}.s3.amazonaws.com/"
-MEDIA_URL = f"https://{AWS_MEDIA_BUCKET_NAME}.s3.amazonaws.com/"
+# STATIC_URL = f"https://{AWS_STORAGE_BUCKET_NAME}.s3.amazonaws.com/"
+# MEDIA_URL = f"https://{AWS_MEDIA_BUCKET_NAME}.s3.amazonaws.com/"
 
-DEFAULT_FILE_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
-STATICFILES_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
+# DEFAULT_FILE_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
+# STATICFILES_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
@@ -245,3 +247,8 @@ SECURE_COOKIE = True  # set to False only in local/dev if necessary
 CSRF_COOKIE_SECURE = SECURE_COOKIE
 SESSION_COOKIE_SECURE = SECURE_COOKIE
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
+SECURE_HSTS_SECONDS = 31536000  # 1 year
+SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+SECURE_HSTS_PRELOAD = True
+SECURE_SSL_REDIRECT = True
