@@ -171,11 +171,6 @@ Key
 	
 Value
 
-Plain text
-ALLOWED_HOSTS
-*.api.pekinledger.com
-Plain text
-DATABASE_URL
 postgresql://pekinladger:Lbhf5jxHJa4Kxw7PkmKl@pekinledger-auroradb.cluster-cgzs8geqks83.us-east-1.rds.amazonaws.com:5432/pekinledger-auroradb
 Plain text
 DJANGO_SECRET_KEY
