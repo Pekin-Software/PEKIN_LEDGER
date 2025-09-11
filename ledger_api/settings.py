@@ -1,7 +1,6 @@
 from pathlib import Path
-import dj_database_url
 from datetime import timedelta
-import os
+import os, json
 from storages.backends.s3boto3 import S3Boto3Storage
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -9,13 +8,17 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # ------------------------------------------------------------------------------
 # SECURITY (HARDCODED FOR FIRST DEPLOY)
 # ------------------------------------------------------------------------------
-SECRET_KEY = "django-insecure-_!gb#a3e10(y9ur98k1h(pc2(w&+2*+v+jj*86s#lj2#)$xb86"
-DEBUG = False
-ALLOWED_HOSTS = [".elasticbeanstalk.com",
-                "api.pekinledger.com", ".api.pekinledger.com",  
-                "localhost",
-                "127.0.0.1",
-                ]
+
+SECRET_KEY = os.environ.get("SECRET_KEY", "django-insecure-_!gb#a3e10(y9ur98k1h(pc2(w&+2*+v+jj*86s#lj2#)$xb86")
+DEBUG = os.environ.get("DEBUG", False)
+DEBUG = os.getenv("DEBUG", "False").lower() in ("true", "1", "yes")
+ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "*").split(",")
+
+# ALLOWED_HOSTS = [
+#                 "api.pekinledger.com", ".api.pekinledger.com",  
+#                 "localhost",
+#                 "127.0.0.1",
+#                 ]
 
 # ------------------------------------------------------------------------------
 # APPLICATIONS
@@ -67,15 +70,18 @@ WSGI_APPLICATION = "ledger_api.wsgi.application"
 # ------------------------------------------------------------------------------
 # DATABASE (HARDCODED)
 # ------------------------------------------------------------------------------
-# DATABASES = {
-#     "default": dj_database_url.config(
-#         default=(
-#             "postgres://ledgerdbadmin:[L5RfBblzzY):YZDsD$-4vAVw6:ck#"
-#             "@ledger-aurora-cluster.cluster-cgzs8geqks83.us-east-1.rds.amazonaws.com:5432/ledgerdb"
-#         ),
-#         engine="django_tenants.postgresql_backend",
-#     )
-# }
+db_secret = json.loads(os.getenv("DB_SECRET", "{}"))
+
+DATABASES = {
+    "default": {
+        "ENGINE": "django_tenants.postgresql_backend",
+        "NAME": db_secret.get("dbname", "ledgerdb"),  # fallback name
+        "USER": db_secret.get("username", ""),
+        "PASSWORD": db_secret.get("password", ""),
+        "HOST": db_secret.get("host", ""),
+        "PORT": db_secret.get("port", "5432"),
+    }
+}
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
@@ -91,17 +97,6 @@ TEMPLATES = [
         },
     },
 ]
-
-DATABASES = {
-    "default": {
-        "ENGINE": "django_tenants.postgresql_backend",
-        "NAME": "ledgerdb",
-        "USER": "ledgerdbadmin",
-        "PASSWORD": "[L5RfBblzzY):YZDsD$-4vAVw6:ck#",
-        "HOST": "ledger-aurora-cluster.cluster-cgzs8geqks83.us-east-1.rds.amazonaws.com",
-        "PORT": "5432",
-    }
-}
 
 DATABASE_ROUTERS = ("django_tenants.routers.TenantSyncRouter",)
 
@@ -145,8 +140,6 @@ AWS_S3_REGION_NAME = os.getenv("AWS_S3_REGION_NAME", "us-east-1")
 AWS_QUERYSTRING_AUTH = False
 AWS_DEFAULT_ACL = None
 
-from storages.backends.s3boto3 import S3Boto3Storage
-
 class StaticStorage(S3Boto3Storage):
     location = "static"
     default_acl = "public-read"
@@ -160,13 +153,10 @@ class MediaStorage(S3Boto3Storage):
 STATICFILES_STORAGE = "ledger_api.settings.StaticStorage"
 DEFAULT_FILE_STORAGE = "ledger_api.settings.MediaStorage"
 
-# STATIC_URL = "https://d3io7897jtegnn.cloudfront.net/static/"
-# MEDIA_URL = "https://d3io7897jtegnn.cloudfront.net/media/"
-
 CLOUDFRONT_DOMAIN = os.getenv("CLOUDFRONT_DOMAIN", "d3io7897jtegnn.cloudfront.net")
 STATIC_ROOT = BASE_DIR / "staticfiles"
-STATIC_URL = f"https://{CLOUDFRONT_DOMAIN}/{os.getenv('AWS_STATIC_LOCATION', 'static')}/"
-MEDIA_URL = f"https://{CLOUDFRONT_DOMAIN}/{os.getenv('AWS_MEDIA_LOCATION', 'media')}/"
+STATIC_URL = f"https://{CLOUDFRONT_DOMAIN}/static/"
+MEDIA_URL = f"https://{CLOUDFRONT_DOMAIN}/media/"
 # ------------------------------------------------------------------------------
 # SECURITY HEADERS (HARDCODED)
 # ------------------------------------------------------------------------------
@@ -179,7 +169,7 @@ SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 SECURE_HSTS_SECONDS = 31536000
 SECURE_HSTS_INCLUDE_SUBDOMAINS = True
 SECURE_HSTS_PRELOAD = True
-SECURE_SSL_REDIRECT = False  # change to true for production
+SECURE_SSL_REDIRECT = not DEBUG
 SESSION_COOKIE_SECURE = True
 CSRF_COOKIE_SECURE = True
 SESSION_COOKIE_SAMESITE = "None"
