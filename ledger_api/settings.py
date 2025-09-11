@@ -74,6 +74,22 @@ WSGI_APPLICATION = "ledger_api.wsgi.application"
 #         engine="django_tenants.postgresql_backend",
 #     )
 # }
+TEMPLATES = [
+    {
+        "BACKEND": "django.template.backends.django.DjangoTemplates",
+        "DIRS": [BASE_DIR / "templates"],  # optional, but recommended
+        "APP_DIRS": True,
+        "OPTIONS": {
+            "context_processors": [
+                "django.template.context_processors.debug",
+                "django.template.context_processors.request",
+                "django.contrib.auth.context_processors.auth",
+                "django.contrib.messages.context_processors.messages",
+            ],
+        },
+    },
+]
+
 DATABASES = {
     "default": {
         "ENGINE": "django_tenants.postgresql_backend",
