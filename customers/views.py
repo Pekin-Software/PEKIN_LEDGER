@@ -6,15 +6,15 @@ from finance.models import ExchangeRate
 from .serializers import UserSerializer
 from django.contrib.auth import authenticate
 from rest_framework.decorators import action
-from rest_framework_simplejwt.tokens import RefreshToken, TokenError
+from rest_framework_simplejwt.tokens import RefreshToken
 from django_tenants.utils import schema_context
-from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework.permissions import AllowAny
 import logging
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 from django.conf import settings
-import traceback
 from rest_framework_simplejwt.views import TokenRefreshView
+from django.http import JsonResponse
 
 logger = logging.getLogger(__name__)
 class IsAdminUser(permissions.BasePermission):
@@ -231,6 +231,7 @@ class LoginViewSet(viewsets.ViewSet):
         
         return resp
 
-
+def healthz(request):
+    return JsonResponse({"status":"ok"})
 
 
