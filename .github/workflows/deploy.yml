@@ -15,7 +15,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: "3.13"
 
       - name: Install dependencies
         run: |
@@ -38,4 +38,4 @@ jobs:
           echo "region=us-east-1" >> ~/.aws/config
 
       - name: Deploy to EB
-        run: eb deploy LedgerAPI-env --staged
+        run: eb deploy Ledger-API-env --staged
