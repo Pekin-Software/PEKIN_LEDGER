@@ -1,6 +1,8 @@
 from pathlib import Path
 import dj_database_url
 from datetime import timedelta
+import os
+from storages.backends.s3boto3 import S3Boto3Storage
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -138,8 +140,8 @@ CORS_ALLOW_HEADERS = ["content-type", "authorization"]
 # ------------------------------------------------------------------------------
 # STATIC & MEDIA (S3 + CLOUDFRONT)
 # ------------------------------------------------------------------------------
-AWS_STORAGE_BUCKET_NAME = "ledger-static-media"
-AWS_S3_REGION_NAME = "us-east-1"
+AWS_STORAGE_BUCKET_NAME = os.getenv("AWS_STORAGE_BUCKET_NAME", "ledger-static-media")
+AWS_S3_REGION_NAME = os.getenv("AWS_S3_REGION_NAME", "us-east-1")
 AWS_QUERYSTRING_AUTH = False
 AWS_DEFAULT_ACL = None
 
@@ -158,9 +160,13 @@ class MediaStorage(S3Boto3Storage):
 STATICFILES_STORAGE = "ledger_api.settings.StaticStorage"
 DEFAULT_FILE_STORAGE = "ledger_api.settings.MediaStorage"
 
-STATIC_URL = "https://d3io7897jtegnn.cloudfront.net/static/"
-MEDIA_URL = "https://d3io7897jtegnn.cloudfront.net/media/"
+# STATIC_URL = "https://d3io7897jtegnn.cloudfront.net/static/"
+# MEDIA_URL = "https://d3io7897jtegnn.cloudfront.net/media/"
 
+CLOUDFRONT_DOMAIN = os.getenv("CLOUDFRONT_DOMAIN", "d3io7897jtegnn.cloudfront.net")
+STATIC_ROOT = BASE_DIR / "staticfiles"
+STATIC_URL = f"https://{CLOUDFRONT_DOMAIN}/{os.getenv('AWS_STATIC_LOCATION', 'static')}/"
+MEDIA_URL = f"https://{CLOUDFRONT_DOMAIN}/{os.getenv('AWS_MEDIA_LOCATION', 'media')}/"
 # ------------------------------------------------------------------------------
 # SECURITY HEADERS (HARDCODED)
 # ------------------------------------------------------------------------------
