@@ -65,14 +65,24 @@ WSGI_APPLICATION = "ledger_api.wsgi.application"
 # ------------------------------------------------------------------------------
 # DATABASE (HARDCODED)
 # ------------------------------------------------------------------------------
+# DATABASES = {
+#     "default": dj_database_url.config(
+#         default=(
+#             "postgres://ledgerdbadmin:[L5RfBblzzY):YZDsD$-4vAVw6:ck#"
+#             "@ledger-aurora-cluster.cluster-cgzs8geqks83.us-east-1.rds.amazonaws.com:5432/ledgerdb"
+#         ),
+#         engine="django_tenants.postgresql_backend",
+#     )
+# }
 DATABASES = {
-    "default": dj_database_url.config(
-        default=(
-            "postgres://ledgerdbadmin:[L5RfBblzzY):YZDsD$-4vAVw6:ck#"
-            "@ledger-aurora-cluster.cluster-cgzs8geqks83.us-east-1.rds.amazonaws.com:5432/ledgerdb"
-        ),
-        engine="django_tenants.postgresql_backend",
-    )
+    "default": {
+        "ENGINE": "django_tenants.postgresql_backend",
+        "NAME": "ledgerdb",
+        "USER": "ledgerdbadmin",
+        "PASSWORD": "[L5RfBblzzY):YZDsD$-4vAVw6:ck#",
+        "HOST": "ledger-aurora-cluster.cluster-cgzs8geqks83.us-east-1.rds.amazonaws.com",
+        "PORT": "5432",
+    }
 }
 
 DATABASE_ROUTERS = ("django_tenants.routers.TenantSyncRouter",)
