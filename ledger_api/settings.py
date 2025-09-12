@@ -72,6 +72,18 @@ WSGI_APPLICATION = "ledger_api.wsgi.application"
 # ------------------------------------------------------------------------------
 db_secret = json.loads(os.getenv("DB_SECRET", "{}"))
 
+# DATABASES = {
+#     "default": {
+#         "ENGINE": "django_tenants.postgresql_backend",
+#         "NAME": "ledgerdb",
+#         "USER": "ed",
+#         "PASSWORD": "pwd1234",
+#         "HOST": "localhost",
+#         "PORT": "5432",
+#     }
+# }
+
+
 DATABASES = {
     "default": {
         "ENGINE": "django_tenants.postgresql_backend",

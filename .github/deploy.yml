@@ -15,7 +15,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # --- CONFIGURE PYTHON (OPTIONAL: for tests, collectstatic before deploy) ---
+      # --- CONFIGURE PYTHON ---
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -26,11 +26,19 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      # --- RUN MIGRATIONS ---
+      - name: Run Django migrations
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          python manage.py migrate_schemas --shared --noinput
+          python manage.py migrate_schemas --tenant --noinput
+
       # Optional: Run tests before deploy
       - name: Run tests
         run: |
           python manage.py check
-          python manage.py test || true  # don't block deploy if tests fail (can remove `|| true` to enforce)
+          python manage.py test || true  # don't block deploy if tests fail
 
       # --- CONFIGURE AWS CREDENTIALS ---
       - name: Configure AWS credentials
