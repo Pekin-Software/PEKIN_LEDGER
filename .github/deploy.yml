@@ -3,7 +3,7 @@ name: Deploy to AWS App Runner
 on:
   push:
     branches:
-      - main   # deploy when pushing to main branch
+      - main
 
 jobs:
   deploy:
@@ -15,38 +15,35 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # --- CONFIGURE PYTHON ---
+      # --- SET UP PYTHON ---
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
+      # --- INSTALL DEPENDENCIES ---
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      # --- DJANGO CHECK ---
+      - name: Check Django project
+        run: python manage.py check
+
       # --- RUN MIGRATIONS ---
       - name: Run Django migrations
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: |
           python manage.py migrate_schemas --shared --noinput
           python manage.py migrate_schemas --tenant --noinput
 
-      # Optional: Run tests before deploy
-      - name: Run tests
-        run: |
-          python manage.py check
-          python manage.py test || true  # don't block deploy if tests fail
+      # --- CREATE PUBLIC TENANT & DOMAIN ---
+      - name: Ensure public tenant and domain
+        run: python manage.py setup_public_domain
 
-      # --- CONFIGURE AWS CREDENTIALS ---
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: us-east-1
+      # --- COLLECT STATIC FILES ---
+      - name: Collect static files
+        run: python manage.py collectstatic --noinput
 
       # --- DEPLOY TO APP RUNNER ---
       - name: Deploy to App Runner

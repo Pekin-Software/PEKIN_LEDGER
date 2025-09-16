@@ -1,45 +1,52 @@
 from pathlib import Path
-from datetime import timedelta
-import os, json
-from storages.backends.s3boto3 import S3Boto3Storage
+import os
+import dj_database_url
+import logging
 
+# optional: decouple if other parts rely on it
+try:
+    from decouple import config
+except Exception:
+    config = None
+
+logger = logging.getLogger(__name__)
+
+# Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# ------------------------------------------------------------------------------
-# SECURITY (HARDCODED FOR FIRST DEPLOY)
-# ------------------------------------------------------------------------------
+# --------------------------------------------------------------------
+# Security / Core Settings
+# --------------------------------------------------------------------
+SECRET_KEY = os.getenv(
+    "DJANGO_SECRET_KEY",
+    "django-insecure-_!gb#a3e10(y9ur98k1h(pc2(w&+2*+v+jj*86s#lj2#)$xb86"
+)
 
-SECRET_KEY = os.environ.get("SECRET_KEY", "django-insecure-_!gb#a3e10(y9ur98k1h(pc2(w&+2*+v+jj*86s#lj2#)$xb86")
-DEBUG = os.environ.get("DEBUG", False)
 DEBUG = os.getenv("DEBUG", "False").lower() in ("true", "1", "yes")
+
 ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "*").split(",")
 
-# ALLOWED_HOSTS = [
-#                 "api.pekinledger.com", ".api.pekinledger.com",  
-#                 "localhost",
-#                 "127.0.0.1",
-#                 ]
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "ledger_api.settings")
 
-# ------------------------------------------------------------------------------
-# APPLICATIONS
-# ------------------------------------------------------------------------------
+# --------------------------------------------------------------------
+# Application definition
+# --------------------------------------------------------------------
 SHARED_APPS = [
-    "django_tenants",
-    "customers",
-    "django_extensions",
-    "django.contrib.admin",
-    "django.contrib.auth",
-    "django.contrib.contenttypes",
-    "django.contrib.sessions",
-    "django.contrib.messages",
-    "django.contrib.staticfiles",
-    "rest_framework",
-    "rest_framework_simplejwt",
-    "rest_framework_simplejwt.token_blacklist",
+    'django_tenants',
+    'customers',
+    'django_extensions',
+    # 'django_hosts',
+    'django.contrib.admin',
+    'django.contrib.auth',
+    'django.contrib.contenttypes',
+    'django.contrib.sessions',
+    'django.contrib.messages',
+    'django.contrib.staticfiles',
+    'rest_framework',
+    'rest_framework_simplejwt',
+    'rest_framework_simplejwt.token_blacklist',
     "corsheaders",
-    "storages",
 ]
-
 TENANT_APPS = [
     "client_app",
     "inventory",
@@ -53,76 +60,15 @@ TENANT_APPS = [
 
 INSTALLED_APPS = SHARED_APPS + [app for app in TENANT_APPS if app not in SHARED_APPS]
 
-MIDDLEWARE = [
-    "django_tenants.middleware.main.TenantMainMiddleware",
-    "corsheaders.middleware.CorsMiddleware",
-    "django.middleware.security.SecurityMiddleware",
-    "django.contrib.sessions.middleware.SessionMiddleware",
-    "django.middleware.common.CommonMiddleware",
-    "django.contrib.auth.middleware.AuthenticationMiddleware",
-    "django.contrib.messages.middleware.MessageMiddleware",
-    "django.middleware.clickjacking.XFrameOptionsMiddleware",
-]
-
-ROOT_URLCONF = "ledger_api.urls"
-WSGI_APPLICATION = "ledger_api.wsgi.application"
-
-# ------------------------------------------------------------------------------
-# DATABASE (HARDCODED)
-# ------------------------------------------------------------------------------
-db_secret = json.loads(os.getenv("DB_SECRET", "{}"))
-
-# DATABASES = {
-#     "default": {
-#         "ENGINE": "django_tenants.postgresql_backend",
-#         "NAME": "ledgerdb",
-#         "USER": "ed",
-#         "PASSWORD": "pwd1234",
-#         "HOST": "localhost",
-#         "PORT": "5432",
-#     }
-# }
-
-
-DATABASES = {
-    "default": {
-        "ENGINE": "django_tenants.postgresql_backend",
-        "NAME": db_secret.get("dbname", "ledgerdb"),  # fallback name
-        "USER": db_secret.get("username", ""),
-        "PASSWORD": db_secret.get("password", ""),
-        "HOST": db_secret.get("host", ""),
-        "PORT": db_secret.get("port", "5432"),
-    }
-}
-TEMPLATES = [
-    {
-        "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [BASE_DIR / "templates"],  # optional, but recommended
-        "APP_DIRS": True,
-        "OPTIONS": {
-            "context_processors": [
-                "django.template.context_processors.debug",
-                "django.template.context_processors.request",
-                "django.contrib.auth.context_processors.auth",
-                "django.contrib.messages.context_processors.messages",
-            ],
-        },
-    },
-]
-
-DATABASE_ROUTERS = ("django_tenants.routers.TenantSyncRouter",)
-
-# ------------------------------------------------------------------------------
-# REST FRAMEWORK & JWT
-# ------------------------------------------------------------------------------
 REST_FRAMEWORK = {
-    "DEFAULT_AUTHENTICATION_CLASSES": (
-        "customers.authentication.TenantAwareJWTAuthentication",
-        "rest_framework_simplejwt.authentication.JWTAuthentication",
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'customers.authentication.TenantAwareJWTAuthentication',
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
     ),
-    "EXCEPTION_HANDLER": "customers.exceptions.custom_exception_handler",
+    'EXCEPTION_HANDLER': 'customers.exceptions.custom_exception_handler'
 }
 
+from datetime import timedelta
 SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(days=1),
     "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
@@ -130,71 +76,191 @@ SIMPLE_JWT = {
     "ROTATE_REFRESH_TOKENS": True,
     "BLACKLIST_AFTER_ROTATION": True,
     "ALGORITHM": "HS256",
-    "SIGNING_KEY": SECRET_KEY,
+    "SIGNING_KEY": SECRET_KEY, 
 }
 
-# ------------------------------------------------------------------------------
-# CORS (HARDCODED)
-# ------------------------------------------------------------------------------
-CORS_ALLOW_CREDENTIALS = True
-CORS_ALLOWED_ORIGINS = [
-    "https://app.pekingledger.com",
-    "https://api.pekinledger.com",
+MIDDLEWARE = [
+    'django_tenants.middleware.main.TenantMainMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
+    'django.middleware.security.SecurityMiddleware',
+    'django.contrib.sessions.middleware.SessionMiddleware',
+    'django.middleware.common.CommonMiddleware',
+    'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'django.contrib.messages.middleware.MessageMiddleware',
+    'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
-CORS_ALLOWED_ORIGIN_REGEXES = [r"^https:\/\/.*\.api\.pekinledger\.com$"]
-CORS_ALLOW_HEADERS = ["content-type", "authorization"]
 
-# ------------------------------------------------------------------------------
-# STATIC & MEDIA (S3 + CLOUDFRONT)
-# ------------------------------------------------------------------------------
-AWS_STORAGE_BUCKET_NAME = os.getenv("AWS_STORAGE_BUCKET_NAME", "ledger-static-media")
+ROOT_URLCONF = 'ledger_api.urls'
+
+CORS_ALLOW_CREDENTIALS = True
+
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:5173",
+    "http://testing022.client1.localhost:8000",
+    "https://pekingledger.store",
+    "https://app.pekingledger.store",
+]
+
+CORS_ALLOWED_ORIGIN_REGEXES = [
+    r"^https://.*\.pekingledger\.store$",
+    r"^https://pekingledger\.store$",
+]
+
+CORS_ALLOW_HEADERS = [
+    "content-type",
+    "authorization",
+]
+
+TEMPLATES = [
+    {
+        'BACKEND': 'django.template.backends.django.DjangoTemplates',
+        'DIRS': [],
+        'APP_DIRS': True,
+        'OPTIONS': {
+            'context_processors': [
+                'django.template.context_processors.debug',
+                'django.template.context_processors.request',
+                'django.contrib.auth.context_processors.auth',
+                'django.contrib.messages.context_processors.messages',
+            ],
+        },
+    },
+]
+
+WSGI_APPLICATION = 'ledger_api.wsgi.application'
+
+# --------------------------------------------------------------------
+# AWS S3 Storage
+# --------------------------------------------------------------------
+USE_AWS_STORAGE = os.getenv("USE_AWS_STORAGE", "False").lower() in ("true", "1", "yes")
 AWS_S3_REGION_NAME = os.getenv("AWS_S3_REGION_NAME", "us-east-1")
-AWS_QUERYSTRING_AUTH = False
-AWS_DEFAULT_ACL = None
+AWS_STORAGE_BUCKET_NAME = os.getenv("AWS_STORAGE_BUCKET_NAME", "ledger-static-media")
 
-class StaticStorage(S3Boto3Storage):
-    location = "static"
-    default_acl = "public-read"
-    object_parameters = {"CacheControl": "max-age=31536000"}
+AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
+AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
+AWS_SESSION_TOKEN = os.getenv("AWS_SESSION_TOKEN")
 
-class MediaStorage(S3Boto3Storage):
-    location = "media"
-    default_acl = "public-read"
-    object_parameters = {"CacheControl": "max-age=60"}
+if USE_AWS_STORAGE and not DEBUG:
+    DEFAULT_FILE_STORAGE = "storages.backends.s3boto3.S3Boto3Storage"
+    STATICFILES_STORAGE = "storages.backends.s3boto3.S3Boto3Storage"
+    AWS_DEFAULT_ACL = None
+    AWS_QUERYSTRING_AUTH = False
+    AWS_S3_OBJECT_PARAMETERS = {"CacheControl": "max-age=86400"}
+    AWS_S3_CUSTOM_DOMAIN = os.getenv(
+        "AWS_S3_CUSTOM_DOMAIN",
+        f"{AWS_STORAGE_BUCKET_NAME}.s3.{AWS_S3_REGION_NAME}.amazonaws.com"
+    )
+    STATIC_URL = f"https://{AWS_S3_CUSTOM_DOMAIN}/static/"
+    MEDIA_URL = f"https://{AWS_S3_CUSTOM_DOMAIN}/media/"
+else:
+    STATIC_URL = '/static/'
+    STATIC_ROOT = BASE_DIR / 'staticfiles'
+    MEDIA_URL = '/media/'
+    MEDIA_ROOT = BASE_DIR / 'media'
 
-STATICFILES_STORAGE = "ledger_api.settings.StaticStorage"
-DEFAULT_FILE_STORAGE = "ledger_api.settings.MediaStorage"
 
-CLOUDFRONT_DOMAIN = os.getenv("CLOUDFRONT_DOMAIN", "d3io7897jtegnn.cloudfront.net")
-STATIC_ROOT = BASE_DIR / "staticfiles"
-STATIC_URL = f"https://{CLOUDFRONT_DOMAIN}/static/"
-MEDIA_URL = f"https://{CLOUDFRONT_DOMAIN}/media/"
-# ------------------------------------------------------------------------------
-# SECURITY HEADERS (HARDCODED)
-# ------------------------------------------------------------------------------
+# --------------------------------------------------------------------
+# Database + AWS Secrets Manager
+# --------------------------------------------------------------------
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django_tenants.postgresql_backend',  
+#         'NAME': 'pekin_ledger_db',
+#         'USER': 'pekin',
+#         'PASSWORD': 'ledger@2025',
+#         'HOST': 'localhost', 
+#         'PORT': '5432',
+#     }
+# }
+
+# try:
+#     import boto3, json
+#     client = boto3.client("secretsmanager", region_name=AWS_S3_REGION_NAME)
+#     response = client.get_secret_value(SecretId="LedgerBD-Credentials")
+#     secrets = json.loads(response["SecretString"])
+
+#     DATABASES["default"].update({
+#         "NAME": secrets.get("dbname", DATABASES["default"]["NAME"]),
+#         "USER": secrets.get("username", DATABASES["default"]["USER"]),
+#         "PASSWORD": secrets.get("password", DATABASES["default"]["PASSWORD"]),
+#         "HOST": secrets.get("host", DATABASES["default"]["HOST"]),
+#         "PORT": secrets.get("port", DATABASES["default"]["PORT"]),
+#     })
+# except Exception as e:
+#     logger.warning("Secrets Manager not available, using default DB settings: %s", e)
+
+import os
+import logging
+import json
+
+import boto3
+
+logger = logging.getLogger(__name__)
+
+DATABASES = {
+    'default': {
+        'ENGINE': 'django_tenants.postgresql_backend',  
+        'NAME': 'pekin_ledger_db',
+        'USER': 'pekin',
+        'PASSWORD': 'ledger@2025',
+        'HOST': 'localhost', 
+        'PORT': '5432',
+    }
+}
+
+# Use AWS Secrets Manager only if this env var is set to True
+USE_SECRETS_MANAGER = os.getenv("USE_SECRETS_MANAGER", "False").lower() in ("true", "1", "yes")
+
+if USE_SECRETS_MANAGER:
+    try:
+        AWS_S3_REGION_NAME = os.getenv("AWS_S3_REGION_NAME", "us-east-1")
+        client = boto3.client("secretsmanager", region_name=AWS_S3_REGION_NAME)
+        response = client.get_secret_value(SecretId="LedgerBD-Credentials")
+        secrets = json.loads(response["SecretString"])
+
+        DATABASES["default"].update({
+            "NAME": secrets.get("dbname", DATABASES["default"]["NAME"]),
+            "USER": secrets.get("username", DATABASES["default"]["USER"]),
+            "PASSWORD": secrets.get("password", DATABASES["default"]["PASSWORD"]),
+            "HOST": secrets.get("host", DATABASES["default"]["HOST"]),
+            "PORT": secrets.get("port", DATABASES["default"]["PORT"]),
+        })
+        logger.info("Using Secrets Manager DB credentials.")
+    except Exception as e:
+        logger.warning("Secrets Manager not available, using default DB settings: %s", e)
+else:
+    logger.info("Using local DB settings.")
+
+
+DATABASE_ROUTERS = (
+   'django_tenants.routers.TenantSyncRouter',
+)
+
+# --------------------------------------------------------------------
+# Authentication / Internationalization
+# --------------------------------------------------------------------
+AUTH_PASSWORD_VALIDATORS = [
+    {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
+    {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator'},
+    {'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator'},
+    {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'},
+]
+
+AUTHENTICATION_BACKENDS = [
+    'django.contrib.auth.backends.ModelBackend',
+]
+
+AUTH_USER_MODEL = 'customers.User'
+
+LANGUAGE_CODE = 'en-us'
+TIME_ZONE = 'UTC'
+USE_I18N = True
+USE_TZ = True
+
+# --------------------------------------------------------------------
+# Defaults
+# --------------------------------------------------------------------
+DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 TENANT_MODEL = "customers.Client"
 TENANT_DOMAIN_MODEL = "customers.Domain"
-PUBLIC_SCHEMA_URLCONF = "customers.urls"
-
-TENANT_COOKIE_DOMAIN = ".api.pekinledger.com"
-SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
-SECURE_HSTS_SECONDS = 31536000
-SECURE_HSTS_INCLUDE_SUBDOMAINS = True
-SECURE_HSTS_PRELOAD = True
-SECURE_SSL_REDIRECT = not DEBUG
-SESSION_COOKIE_SECURE = True
-CSRF_COOKIE_SECURE = True
-SESSION_COOKIE_SAMESITE = "None"
-CSRF_COOKIE_SAMESITE = "None"
-
-# ------------------------------------------------------------------------------
-# LOGGING
-# ------------------------------------------------------------------------------
-LOGGING = {
-    "version": 1,
-    "disable_existing_loggers": False,
-    "handlers": {"console": {"class": "logging.StreamHandler"}},
-    "root": {"handlers": ["console"], "level": "INFO"},
-}
-
-DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+PUBLIC_SCHEMA_URLCONF = 'customers.urls'
