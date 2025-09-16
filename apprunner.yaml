@@ -1,6 +1,6 @@
 ---
 version: 1
-runtime: python3.10
+runtime: python311
 build:
   commands:
     - python3 -m pip install --upgrade pip --no-cache-dir
