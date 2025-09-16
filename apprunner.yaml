@@ -1,11 +1,10 @@
 version: 1.0
 runtime: python311
 run:
-  commands:
-    pre-run:
-      - python3 -m pip install --upgrade pip --no-cache-dir
-      - python3 -m pip install --no-cache-dir gunicorn==23.0.0
-      - python3 -m pip install --no-cache-dir -r requirements.txt
+  pre-run:
+    - python3 -m pip install --upgrade pip --no-cache-dir
+    - python3 -m pip install --no-cache-dir gunicorn==23.0.0
+    - python3 -m pip install --no-cache-dir -r requirements.txt
   command: python3 -m gunicorn ledger_api.wsgi:application --bind 0.0.0.0:8000 --workers 3
   network:
     port: 8000
