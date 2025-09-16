@@ -1,10 +1,10 @@
 version: 1
 runtime: python3
 build:
-  commands:
-    - python3 -m pip install --upgrade pip --no-cache-dir
-    - python3 -m pip install --no-cache-dir gunicorn==23.0.0
-    - python3 -m pip install --no-cache-dir -r requirements.txt
+  commands: >
+    python3 -m pip install --upgrade pip --no-cache-dir &&
+    python3 -m pip install --no-cache-dir gunicorn==23.0.0 &&
+    python3 -m pip install --no-cache-dir -r requirements.txt
 start:
   command: gunicorn ledger_api.wsgi:application --bind 0.0.0.0:8000 --workers 3
 port: 8000
