@@ -107,8 +107,6 @@ WSGI_APPLICATION = 'ledger_api.wsgi.application'
 # MEDIA_URL = '/media/'
 # MEDIA_ROOT = BASE_DIR / 'media'
 
-AWS_ACCESS_KEY_ID = config("AWS_ACCESS_KEY_ID")
-AWS_SECRET_ACCESS_KEY = config("AWS_SECRET_ACCESS_KEY")
 AWS_STORAGE_BUCKET_NAME = config("AWS_STORAGE_BUCKET_NAME")
 AWS_S3_REGION_NAME = config("AWS_REGION", default="eu-west-3")
 AWS_S3_ENDPOINT_URL = config("AWS_S3_ENDPOINT_URL", default=None)
