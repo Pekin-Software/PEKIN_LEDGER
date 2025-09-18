@@ -1,10 +1,7 @@
 lightsail ssh - ssh -i LedgerLightSailKeyPair.pem ubuntu@13.37.204.207
 
-<<<<<<< HEAD
 source venv/bin/activate
-=======
 
->>>>>>> 2717949ce438e11adbe8bf572b7f23d3d3a5f2c4
 {
     "username": "edkainah",
     "password": "esk@1998"
