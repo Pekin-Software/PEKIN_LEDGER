@@ -1,3 +1,6 @@
+lightsail ssh - ssh -i LedgerLightSailKeyPair.pem ubuntu@13.37.204.207
+
+
 {
     "username": "edkainah",
     "password": "esk@1998"

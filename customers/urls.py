@@ -15,8 +15,7 @@ def home(request):
 
 # The API URLs are now determined automatically by the router.
 urlpatterns = [
-     path("", home, name="home"),
-    path('admin/', admin.site.urls),
+    path("", home, name="home"),
     path('api/', include(router.urls)),
     path('api/token/refresh/', CookieTokenRefreshView.as_view(), name='token_refresh'), 
     path("healthz", healthz),
