@@ -103,7 +103,7 @@ WSGI_APPLICATION = 'ledger_api.wsgi.application'
 # --------------------------------------------------------------------
 
 # STATIC_URL = 'static/'
-# STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 # MEDIA_URL = '/media/'
 # MEDIA_ROOT = BASE_DIR / 'media'
 AWS_ACCESS_KEY_ID = config("AWS_ACCESS_KEY_ID")
