@@ -82,13 +82,13 @@ CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
     "http://testing022.client1.localhost:8000",
-    "https://pekingledger.store",
-    "https://app.pekingledger.store",
+    "https://pekinledger.com",
+    "https://app.pekinledger.com",
 ]
 
 CORS_ALLOWED_ORIGIN_REGEXES = [
-    r"^https://.*\.pekingledger\.store$",
-    r"^https://pekingledger\.store$",
+    r"^https://.*\.pekinledger\.com$",
+    r"^https://pekinledger\.com$",
 ]
 
 CORS_ALLOW_HEADERS = [
@@ -121,27 +121,27 @@ MEDIA_URL = f"https://{AWS_STORAGE_BUCKET_NAME}.s3.{AWS_S3_REGION_NAME}.amazonaw
 # Database & Templates
 # --------------------------------------------------------------------
 
-# DATABASES = {
-#     'default': {
-#         'ENGINE': 'django_tenants.postgresql_backend',  
-#         'NAME': 'pekin_ledger_db',
-#         'USER': 'pekin',
-#         'PASSWORD': 'ledger@2025',
-#         'HOST': 'localhost', 
-#         'PORT': '5432',
-#     }
-# }
-
 DATABASES = {
     'default': {
         'ENGINE': 'django_tenants.postgresql_backend',  
-        'NAME': config("DB_NAME"),
-        'USER': config("DB_USER"),
-        'PASSWORD': config("DB_PASSWORD"),
-        'HOST': config("DB_HOST"),
-        'PORT': config("DB_PORT", default="5432"),
+        'NAME': 'pekin_ledger_db',
+        'USER': 'pekin',
+        'PASSWORD': 'ledger@2025',
+        'HOST': 'localhost', 
+        'PORT': '5432',
     }
 }
+
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django_tenants.postgresql_backend',  
+#         'NAME': config("DB_NAME"),
+#         'USER': config("DB_USER"),
+#         'PASSWORD': config("DB_PASSWORD"),
+#         'HOST': config("DB_HOST"),
+#         'PORT': config("DB_PORT", default="5432"),
+#     }
+# }
 
 
 # DATABASES = {
