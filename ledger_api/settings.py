@@ -53,9 +53,15 @@ TENANT_APPS = [
 INSTALLED_APPS = SHARED_APPS + [app for app in TENANT_APPS if app not in SHARED_APPS]
 
 REST_FRAMEWORK = {
+    'DEFAULT_RENDERER_CLASSES': (
+        "rest_framework.renderers.JSONRenderer",
+    ),
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'customers.authentication.TenantAwareJWTAuthentication',
         'rest_framework_simplejwt.authentication.JWTAuthentication',
+    ),
+    "DEFAULT_PERMISSION_CLASSES": (
+        "rest_framework.permissions.IsAuthenticated",
     ),
     'EXCEPTION_HANDLER': 'customers.exceptions.custom_exception_handler'
 }
