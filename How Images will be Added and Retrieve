@@ -1,0 +1,107 @@
+1️⃣ Models
+
+You need a model that stores the file. Use ImageField or FileField with your MediaStorage:
+
+# models.py
+from django.db import models
+from ledger_api.settings import MediaStorage
+
+class UserProfile(models.Model):
+    name = models.CharField(max_length=100)
+    avatar = models.ImageField(storage=MediaStorage(), upload_to='avatars/', blank=True, null=True)
+
+    def __str__(self):
+        return self.name
+
+
+upload_to='avatars/' → files go into media/avatars/ in your S3 bucket.
+
+storage=MediaStorage() → uses your S3 bucket.
+
+2️⃣ Serializer
+# serializers.py
+from rest_framework import serializers
+from .models import UserProfile
+
+class UserProfileSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = UserProfile
+        fields = ['id', 'name', 'avatar']
+
+3️⃣ API View
+# views.py
+from rest_framework import viewsets
+from .models import UserProfile
+from .serializers import UserProfileSerializer
+
+class UserProfileViewSet(viewsets.ModelViewSet):
+    queryset = UserProfile.objects.all()
+    serializer_class = UserProfileSerializer
+
+
+Using a ModelViewSet gives you endpoints for list, retrieve, create, update, delete.
+
+4️⃣ URL routing
+# urls.py
+from django.urls import path, include
+from rest_framework.routers import DefaultRouter
+from .views import UserProfileViewSet
+
+router = DefaultRouter()
+router.register(r'user-profiles', UserProfileViewSet)
+
+urlpatterns = [
+    path('api/', include(router.urls)),
+]
+
+5️⃣ Sending files from frontend
+
+For multipart/form-data (file upload), your request should look like:
+
+POST /api/user-profiles/
+Content-Type: multipart/form-data
+
+name=John Doe
+avatar=<file>
+
+
+Using fetch in JS:
+
+const formData = new FormData();
+formData.append("name", "John Doe");
+formData.append("avatar", fileInput.files[0]);
+
+fetch("/api/user-profiles/", {
+  method: "POST",
+  body: formData
+})
+.then(res => res.json())
+.then(console.log);
+
+
+DRF automatically stores the file in S3 via MediaStorage, and avatar.url will give the public S3 URL.
+
+6️⃣ Retrieving the file
+
+When you GET the object:
+
+{
+    "id": 1,
+    "name": "John Doe",
+    "avatar": "https://ledger-static-media.s3.eu-west-3.amazonaws.com/media/avatars/filename.jpg"
+}
+
+
+Frontend can directly use this URL to display the image.
+
+✅ Notes / Tips
+
+Ensure DEFAULT_FILE_STORAGE = 'ledger_api.settings.MediaStorage' is set (you already did this).
+
+Make sure default_acl = 'public-read' in your MediaStorage class so URLs are accessible.
+
+If you want private files, you’d need to generate presigned URLs instead.
+
+I can also write a full example including JWT auth + avatar upload API if you want a production-ready setup.
+
+Do you want me to do that next?
