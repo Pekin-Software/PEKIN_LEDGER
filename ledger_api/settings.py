@@ -85,6 +85,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    "customer.middleware.BlockDirectBrowserAccessMiddleware",
 ]
 
 ROOT_URLCONF = 'ledger_api.urls'
@@ -165,7 +166,6 @@ DATABASES = {
         'PORT': config("DB_PORT", default="5432"),
     }
 }
-
 
 # DATABASES = {
 #     'default': dj_database_url.config(

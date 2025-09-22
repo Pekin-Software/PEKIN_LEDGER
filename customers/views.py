@@ -16,6 +16,7 @@ from django.utils.decorators import method_decorator
 from django.conf import settings
 from rest_framework_simplejwt.views import TokenRefreshView
 from django.http import JsonResponse
+from django.http import HttpResponse
 
 logger = logging.getLogger(__name__)
 class IsAdminUser(permissions.BasePermission):
@@ -235,8 +236,6 @@ class LoginViewSet(viewsets.ViewSet):
 def healthz(request):
     return JsonResponse({"status":"ok"})
 
-class MyAPIView(APIView):
-    permission_classes = [IsAuthenticated]
-
-    def get(self, request):
-        return Response({"message": "Protected API"})
+def robots_txt(request):
+    content = "User-agent: *\nDisallow: /"
+    return HttpResponse(content, content_type="text/plain")

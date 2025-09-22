@@ -2,7 +2,7 @@ from django.urls import path
 from django.contrib import admin
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views import  UserViewSet, LoginViewSet, CookieTokenRefreshView, healthz, MyAPIView
+from .views import  UserViewSet, LoginViewSet, CookieTokenRefreshView, healthz, robots_txt
 
 
 router = DefaultRouter()
@@ -14,5 +14,5 @@ urlpatterns = [
     path('api/', include(router.urls)),
     path('api/token/refresh/', CookieTokenRefreshView.as_view(), name='token_refresh'), 
     path("healthz", healthz),
-    path('api/protected/', MyAPIView.as_view(), name='protected-api'),
+    path("robots.txt", robots_txt),
 ]   
