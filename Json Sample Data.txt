@@ -79,167 +79,23 @@ testing022.client1.localhost:8000/api/products/42/restock-product/
   
     }
   ]
-}
+}[Unit]
+Description=Gunicorn instance to serve PEKIN_LEDGER
+After=network.target
 
-from pathlib import Path
-import os
-import dj_database_url
-import logging
-import json
-import boto3
+[Service]
+User=ubuntu
+Group=www-data
+WorkingDirectory=/home/ubuntu/PEKIN_LEDGER
+EnvironmentFile=/home/ubuntu/PEKIN_LEDGER/.env
+RuntimeDirectory=gunicorn
+ExecStart=/home/ubuntu/PEKIN_LEDGER/venv/bin/gunicorn \
+          --workers 3 \
+          --bind unix:/run/gunicorn/gunicorn.sock \
+          ledger_api.wsgi:application
+UMask=007
+Restart=always
 
-# optional: decouple if other parts rely on it
-try:
-    from decouple import config
-except Exception:
-    config = None
-
-logger = logging.getLogger(__name__)
-
-# Build paths inside the project like this: BASE_DIR / 'subdir'.
-BASE_DIR = Path(__file__).resolve().parent.parent
-
-# --------------------------------------------------------------------
-# Security / Core Settings
-# --------------------------------------------------------------------
-SECRET_KEY = os.getenv(
-    "DJANGO_SECRET_KEY",
-    "django-insecure-_!gb#a3e10(y9ur98k1h(pc2(w&+2*+v+jj*86s#lj2#)$xb86"
-)
-
-DEBUG = os.getenv("DEBUG", "False").lower() in ("true", "1", "yes")
-
-ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "*").split(",")
-
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "ledger_api.settings")
-
-# --------------------------------------------------------------------
-# Application definition
-# --------------------------------------------------------------------
-SHARED_APPS = [
-    'django_tenants',
-    'customers',
-    'django_extensions',
-    # 'django_hosts',
-    'django.contrib.admin',
-    'django.contrib.auth',
-    'django.contrib.contenttypes',
-    'django.contrib.sessions',
-    'django.contrib.messages',
-    'django.contrib.staticfiles',
-    'rest_framework',
-    'rest_framework_simplejwt',
-    'rest_framework_simplejwt.token_blacklist',
-    "corsheaders",
-]
-TENANT_APPS = [
-    "client_app",
-    "inventory",
-    "products",
-    "records",
-    "stores",
-    "sales",
-    "order",
-    "finance",
-]
-
-INSTALLED_APPS = SHARED_APPS + [app for app in TENANT_APPS if app not in SHARED_APPS]
-
-REST_FRAMEWORK = {
-    'DEFAULT_AUTHENTICATION_CLASSES': (
-        'customers.authentication.TenantAwareJWTAuthentication',
-        'rest_framework_simplejwt.authentication.JWTAuthentication',
-    ),
-    'EXCEPTION_HANDLER': 'customers.exceptions.custom_exception_handler'
-}
-
-from datetime import timedelta
-SIMPLE_JWT = {
-    "ACCESS_TOKEN_LIFETIME": timedelta(days=1),
-    "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
-    "AUTH_TOKEN_CLASSES": ("rest_framework_simplejwt.tokens.AccessToken",),
-    "ROTATE_REFRESH_TOKENS": True,
-    "BLACKLIST_AFTER_ROTATION": True,
-    "ALGORITHM": "HS256",
-    "SIGNING_KEY": SECRET_KEY, 
-}
-
-MIDDLEWARE = [
-    'django_tenants.middleware.main.TenantMainMiddleware',
-    'corsheaders.middleware.CorsMiddleware',
-    'django.middleware.security.SecurityMiddleware',
-    'django.contrib.sessions.middleware.SessionMiddleware',
-    'django.middleware.common.CommonMiddleware',
-    'django.contrib.auth.middleware.AuthenticationMiddleware',
-    'django.contrib.messages.middleware.MessageMiddleware',
-    'django.middleware.clickjacking.XFrameOptionsMiddleware',
-]
-
-ROOT_URLCONF = 'ledger_api.urls'
-
-CORS_ALLOW_CREDENTIALS = True
-
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:5173",
-    "http://testing022.client1.localhost:8000",
-    "https://pekingledger.store",
-    "https://app.pekingledger.store",
-]
-
-CORS_ALLOWED_ORIGIN_REGEXES = [
-    r"^https://.*\.pekingledger\.store$",
-    r"^https://pekingledger\.store$",
-]
-
-CORS_ALLOW_HEADERS = [
-    "content-type",
-    "authorization",
-]
-
-TEMPLATES = [
-    {
-        'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
-        'APP_DIRS': True,
-        'OPTIONS': {
-            'context_processors': [
-                'django.template.context_processors.debug',
-                'django.template.context_processors.request',
-                'django.contrib.auth.context_processors.auth',
-                'django.contrib.messages.context_processors.messages',
-            ],
-        },
-    },
-]
-
-WSGI_APPLICATION = 'ledger_api.wsgi.application'
-
-# --------------------------------------------------------------------
-# AWS S3 Storage
-# --------------------------------------------------------------------
-USE_AWS_STORAGE = os.getenv("USE_AWS_STORAGE", "False").lower() in ("true", "1", "yes")
-AWS_S3_REGION_NAME = os.getenv("AWS_S3_REGION_NAME", "us-east-1")
-AWS_STORAGE_BUCKET_NAME = os.getenv("AWS_STORAGE_BUCKET_NAME", "ledger-static-media")
-
-AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
-AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
-AWS_SESSION_TOKEN = os.getenv("AWS_SESSION_TOKEN")
-
-if USE_AWS_STORAGE and not DEBUG:
-    DEFAULT_FILE_STORAGE = "storages.backends.s3boto3.S3Boto3Storage"
-    STATICFILES_STORAGE = "storages.backends.s3boto3.S3Boto3Storage"
-    AWS_DEFAULT_ACL = None
-    AWS_QUERYSTRING_AUTH = False
-    AWS_S3_OBJECT_PARAMETERS = {"CacheControl": "max-age=86400"}
-    AWS_S3_CUSTOM_DOMAIN = os.getenv(
-        "AWS_S3_CUSTOM_DOMAIN",
-        f"{AWS_STORAGE_BUCKET_NAME}.s3.{AWS_S3_REGION_NAME}.amazonaws.com"
-    )
-    STATIC_URL = f"https://{AWS_S3_CUSTOM_DOMAIN}/static/"
-    MEDIA_URL = f"https://{AWS_S3_CUSTOM_DOMAIN}/media/"
-else:
-    STATIC_URL = '/static/'
-    STATIC_ROOT = BASE_DIR / 'staticfiles'
-    MEDIA_URL = '/media/'
-    MEDIA_ROOT = BASE_DIR / 'media'
+[Install]
+WantedBy=multi-user.target
 

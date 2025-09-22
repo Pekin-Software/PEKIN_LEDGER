@@ -1,4 +1,5 @@
 from rest_framework.response import Response
+from rest_framework.views import APIView
 from rest_framework import viewsets, status, permissions
 from .models import Domain, User
 from stores.models import Employee
@@ -8,7 +9,7 @@ from django.contrib.auth import authenticate
 from rest_framework.decorators import action
 from rest_framework_simplejwt.tokens import RefreshToken
 from django_tenants.utils import schema_context
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
 import logging
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
@@ -234,4 +235,8 @@ class LoginViewSet(viewsets.ViewSet):
 def healthz(request):
     return JsonResponse({"status":"ok"})
 
+class MyAPIView(APIView):
+    permission_classes = [IsAuthenticated]
 
+    def get(self, request):
+        return Response({"message": "Protected API"})

@@ -53,9 +53,15 @@ TENANT_APPS = [
 INSTALLED_APPS = SHARED_APPS + [app for app in TENANT_APPS if app not in SHARED_APPS]
 
 REST_FRAMEWORK = {
+    'DEFAULT_RENDERER_CLASSES': (
+        "rest_framework.renderers.JSONRenderer",
+    ),
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'customers.authentication.TenantAwareJWTAuthentication',
         'rest_framework_simplejwt.authentication.JWTAuthentication',
+    ),
+    "DEFAULT_PERMISSION_CLASSES": (
+        "rest_framework.permissions.IsAuthenticated",
     ),
     'EXCEPTION_HANDLER': 'customers.exceptions.custom_exception_handler'
 }
@@ -88,13 +94,13 @@ CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
     "http://testing022.client1.localhost:8000",
-    "https://pekingledger.store",
-    "https://app.pekingledger.store",
+    "https://pekinledger.com",
+    "https://app.pekinledger.com",
 ]
 
 CORS_ALLOWED_ORIGIN_REGEXES = [
-    r"^https://.*\.pekingledger\.store$",
-    r"^https://pekingledger\.store$",
+    r"^https://.*\.pekinledger\.com$",
+    r"^https://pekinledger\.com$",
 ]
 
 CORS_ALLOW_HEADERS = [

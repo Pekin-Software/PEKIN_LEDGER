@@ -2,6 +2,18 @@ lightsail ssh - ssh -i LedgerLightSailKeyPair.pem ubuntu@13.37.204.207
 
 source venv/bin/activate
 
+manual testinng cd /home/ubuntu/PEKIN_LEDGER
+./venv/bin/gunicorn --workers 3 --bind unix:/home/ubuntu/PEKIN_LEDGER/run/gunicorn.sock ledger_api.wsgi:application
+
+sudo journalctl -u gunicorn --since "10 minutes ago"
+sudo nano /etc/systemd/system/gunicorn.service
+
+set file permission 
+sudo usermod -aG ubuntu www-data
+sudo chmod 750 /home/ubuntu
+ls -ld /home/ubuntu
+
+source /home/ed/repos/PEKIN_LEDGER/pekin_ledger-venv/bin/activate
 {
     "username": "edkainah",
     "password": "esk@1998"
