@@ -3,7 +3,7 @@ from django.contrib import admin
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .views import  UserViewSet, LoginViewSet, CookieTokenRefreshView, healthz, robots_txt
-
+from rest_framework_simplejwt.views import TokenRefreshView
 
 router = DefaultRouter()
 router.register(r'create', UserViewSet)
