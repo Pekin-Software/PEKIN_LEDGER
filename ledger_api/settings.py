@@ -85,7 +85,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    "customer.middleware.BlockDirectBrowserAccessMiddleware",
+    "customers.middleware.BlockDirectBrowserAccessMiddleware",
 ]
 
 ROOT_URLCONF = 'ledger_api.urls'
