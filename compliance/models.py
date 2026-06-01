@@ -5,7 +5,6 @@ from django.conf import settings
 from customers.models import Client
 from stores.models import Store
 
-
 class EInvoice(models.Model):
 
     STATUS_CHOICES = (
@@ -344,6 +343,72 @@ class InventoryComplianceEvent(models.Model):
 
     created_at = models.DateTimeField(auto_now_add=True)
 
+class ComplianceTaxLedger(models.Model):
+
+    TAX_TYPES = (
+        ('VAT', 'VAT'),
+        ('PAYE', 'PAYE'),
+        ('WITHHOLDING', 'Withholding Tax'),
+        ('CORPORATE_INCOME', 'Corporate Income Tax'),
+    )
+
+    STATUS_CHOICES = (
+        ('PAYABLE', 'Payable'),
+        ('FILED', 'Filed'),
+        ('PAID', 'Paid'),
+    )
+
+    tenant = models.ForeignKey(
+        Client,
+        on_delete=models.CASCADE,
+        related_name='compliance_tax_ledgers'
+    )
+
+    store = models.ForeignKey(
+        Store,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='compliance_tax_ledgers'
+    )
+
+    tax_type = models.CharField(
+        max_length=50,
+        choices=TAX_TYPES
+    )
+
+    reference = models.CharField(
+        max_length=100
+    )
+
+    taxable_amount = models.DecimalField(
+        max_digits=18,
+        decimal_places=2
+    )
+
+    tax_amount = models.DecimalField(
+        max_digits=18,
+        decimal_places=2
+    )
+
+    period_month = models.CharField(max_length=20)
+    period_year = models.IntegerField()
+
+    status = models.CharField(
+        max_length=30,
+        choices=STATUS_CHOICES,
+        default='PAYABLE'
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = (
+            ('tenant', 'tax_type', 'reference'),
+        )
+
+    def __str__(self):
+        return f'{self.tax_type} - {self.reference}'
 
 class BranchVATSummary(models.Model):
 

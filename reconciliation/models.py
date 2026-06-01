@@ -2,28 +2,37 @@ from django.db import models
 from django.conf import settings
 
 from customers.models import Client
+from payroll.models import PayrollRun
+from compliance.models import ComplianceTaxLedger
 from stores.models import Store
 from inventory.models import Supplier, Purchase
 from sales.models import Sale
 
 # models.py
-
 class CashTransaction(models.Model):
 
-    tenant = models.ForeignKey(
-        Client,
-        on_delete=models.CASCADE
+    TRANSACTION_TYPES = (
+        ('SALE', 'Sale'),
+        ('PAYROLL_PAYMENT', 'Payroll Payment'),
+        ('PAYE_PAYMENT', 'PAYE Payment'),
     )
 
-    store = models.ForeignKey(
-        Store,
-        on_delete=models.CASCADE
-    )
+    tenant = models.ForeignKey(Client, on_delete=models.CASCADE)
+
+    store = models.ForeignKey(Store, on_delete=models.CASCADE)
 
     sale = models.ForeignKey(
         Sale,
         on_delete=models.CASCADE,
-        related_name="cash_transactions"
+        related_name="cash_transactions",
+        null=True,
+        blank=True
+    )
+
+    transaction_type = models.CharField(
+        max_length=50,
+        choices=TRANSACTION_TYPES,
+        default='SALE'
     )
 
     cashier = models.ForeignKey(
@@ -33,23 +42,16 @@ class CashTransaction(models.Model):
         blank=True
     )
 
-    amount = models.DecimalField(
-        max_digits=18,
-        decimal_places=2
-    )
+    amount = models.DecimalField(max_digits=18, decimal_places=2)
 
     transaction_reference = models.CharField(
         max_length=255,
         unique=True
     )
 
-    transaction_date = models.DateTimeField(
-        auto_now_add=True
-    )
+    transaction_date = models.DateTimeField(auto_now_add=True)
 
-    is_reconciled = models.BooleanField(
-        default=False
-    )
+    is_reconciled = models.BooleanField(default=False)
 
     cash_reconciliation = models.ForeignKey(
         "CashReconciliation",
@@ -59,9 +61,7 @@ class CashTransaction(models.Model):
         related_name="cash_transactions"
     )
 
-    created_at = models.DateTimeField(
-        auto_now_add=True
-    )
+    created_at = models.DateTimeField(auto_now_add=True)
 
 class CashReconciliation(models.Model):
 
@@ -140,19 +140,25 @@ class MobileMoneyTransaction(models.Model):
         ('MTN', 'MTN Mobile Money'),
     )
 
-    tenant = models.ForeignKey(
-        Client,
-        on_delete=models.CASCADE
+    TRANSACTION_TYPES = (
+        ('SALE', 'Sale'),
+        ('PAYROLL_PAYMENT', 'Payroll Payment'),
+        ('PAYE_PAYMENT', 'PAYE Payment'),
     )
 
-    store = models.ForeignKey(
-        Store,
-        on_delete=models.CASCADE
-    )
+    tenant = models.ForeignKey(Client, on_delete=models.CASCADE)
+
+    store = models.ForeignKey(Store, on_delete=models.CASCADE)
 
     provider = models.CharField(
         max_length=30,
         choices=PROVIDERS
+    )
+
+    transaction_type = models.CharField(
+        max_length=50,
+        choices=TRANSACTION_TYPES,
+        default='SALE'
     )
 
     transaction_reference = models.CharField(
@@ -166,21 +172,13 @@ class MobileMoneyTransaction(models.Model):
         null=True
     )
 
-    amount = models.DecimalField(
-        max_digits=18,
-        decimal_places=2
-    )
+    amount = models.DecimalField(max_digits=18, decimal_places=2)
 
     transaction_date = models.DateTimeField()
 
-    is_reconciled = models.BooleanField(
-        default=False
-    )
+    is_reconciled = models.BooleanField(default=False)
 
-    reconciled_at = models.DateTimeField(
-        null=True,
-        blank=True
-    )
+    reconciled_at = models.DateTimeField(null=True, blank=True)
 
     reconciled_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -209,13 +207,9 @@ class MobileMoneyTransaction(models.Model):
         default=0
     )
 
-    is_partial_match = models.BooleanField(
-        default=False
-    )
+    is_partial_match = models.BooleanField(default=False)
 
-    created_at = models.DateTimeField(
-        auto_now_add=True
-    )
+    created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
         return self.transaction_reference
@@ -282,6 +276,150 @@ class MobileMoneyReconciliation(models.Model):
     reconciled_at = models.DateTimeField(
         auto_now_add=True
     )
+
+class PayrollPaymentReconciliation(models.Model):
+
+    PAYMENT_METHODS = (
+        ('CASH', 'Cash'),
+        ('MOBILE_MONEY', 'Mobile Money'),
+    )
+
+    STATUS_CHOICES = (
+        ('MATCHED', 'Matched'),
+        ('MISMATCH', 'Mismatch'),
+        ('PARTIAL', 'Partial'),
+    )
+
+    tenant = models.ForeignKey(Client, on_delete=models.CASCADE)
+
+    store = models.ForeignKey(Store, on_delete=models.CASCADE)
+
+    payroll_run = models.ForeignKey(
+        PayrollRun,
+        on_delete=models.CASCADE,
+        related_name='payment_reconciliations'
+    )
+
+    payment_method = models.CharField(
+        max_length=30,
+        choices=PAYMENT_METHODS
+    )
+
+    cash_transaction = models.ForeignKey(
+        CashTransaction,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True
+    )
+
+    mobile_money_transaction = models.ForeignKey(
+        MobileMoneyTransaction,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True
+    )
+
+    expected_amount = models.DecimalField(
+        max_digits=18,
+        decimal_places=2
+    )
+
+    actual_amount = models.DecimalField(
+        max_digits=18,
+        decimal_places=2
+    )
+
+    variance_amount = models.DecimalField(
+        max_digits=18,
+        decimal_places=2,
+        default=0
+    )
+
+    status = models.CharField(
+        max_length=30,
+        choices=STATUS_CHOICES
+    )
+
+    reconciled_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True
+    )
+
+    reconciled_at = models.DateTimeField(auto_now_add=True)
+
+class PAYEPaymentReconciliation(models.Model):
+
+    PAYMENT_METHODS = (
+        ('CASH', 'Cash'),
+        ('MOBILE_MONEY', 'Mobile Money'),
+    )
+
+    STATUS_CHOICES = (
+        ('MATCHED', 'Matched'),
+        ('MISMATCH', 'Mismatch'),
+        ('PARTIAL', 'Partial'),
+    )
+
+    tenant = models.ForeignKey(Client, on_delete=models.CASCADE)
+
+    store = models.ForeignKey(Store, on_delete=models.CASCADE)
+
+    compliance_tax = models.ForeignKey(
+        ComplianceTaxLedger,
+        on_delete=models.CASCADE,
+        related_name='paye_payment_reconciliations'
+    )
+
+    payment_method = models.CharField(
+        max_length=30,
+        choices=PAYMENT_METHODS
+    )
+
+    cash_transaction = models.ForeignKey(
+        CashTransaction,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True
+    )
+
+    mobile_money_transaction = models.ForeignKey(
+        MobileMoneyTransaction,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True
+    )
+
+    expected_amount = models.DecimalField(
+        max_digits=18,
+        decimal_places=2
+    )
+
+    actual_amount = models.DecimalField(
+        max_digits=18,
+        decimal_places=2
+    )
+
+    variance_amount = models.DecimalField(
+        max_digits=18,
+        decimal_places=2,
+        default=0
+    )
+
+    status = models.CharField(
+        max_length=30,
+        choices=STATUS_CHOICES
+    )
+
+    reconciled_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True
+    )
+
+    reconciled_at = models.DateTimeField(auto_now_add=True)
 
 class SupplierVATTransaction(models.Model):
 

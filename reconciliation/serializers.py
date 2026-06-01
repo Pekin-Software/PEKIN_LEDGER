@@ -7,9 +7,10 @@ from .models import (
     MobileMoneyReconciliation,
     SupplierVATTransaction,
     SupplierVATReconciliation,
-    ReconciliationException
+    ReconciliationException,
+    PayrollPaymentReconciliation,
+    PAYEPaymentReconciliation
 )
-
 
 class CashTransactionSerializer(serializers.ModelSerializer):
     class Meta:
@@ -108,3 +109,16 @@ class ReconciliationExceptionSerializer(serializers.ModelSerializer):
             "tenant",
             "store",
         ]
+
+class PayrollPaymentReconciliationSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = PayrollPaymentReconciliation
+        fields = '__all__'
+
+
+class PAYEPaymentReconciliationSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = PAYEPaymentReconciliation
+        fields = '__all__'
