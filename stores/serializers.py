@@ -1,6 +1,6 @@
 from rest_framework import serializers
-from .models import Store, Employee
-from customers.models import Client  # Assuming tenant model is Client
+from .models import Store
+from customers.models import Client  
 from django.db import connection
 from inventory.models import Inventory, Warehouse, Section
 from products.models import Product, ProductLot
@@ -26,15 +26,3 @@ class StoreSerializer(serializers.ModelSerializer):
         # Attach the tenant to the store before saving
         validated_data["tenant"] = tenant
         return super().create(validated_data)
-
-class EmployeeSerializer(serializers.ModelSerializer):
-    user = serializers.StringRelatedField()
-    position = serializers.SerializerMethodField()
-
-    class Meta:
-        model = Employee
-        fields = ['user', 'position']
-
-    def get_position(self, obj):
-        return obj.user.position
-    

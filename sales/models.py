@@ -9,14 +9,30 @@ from customers.models import User, Client
 from collections import defaultdict
 from decimal import Decimal
 from django.core.exceptions import ValidationError
+from .utils import apply_sale_stats, reverse_sale_stats
+from taxation.models import TaxClass
 
 class Sale(models.Model):
     order = models.ForeignKey('order.Order', null=True, blank=True, on_delete=models.SET_NULL, related_name='sales')
     tenant = models.ForeignKey(Client, on_delete=models.CASCADE, related_name="sales")
     store = models.ForeignKey(Store, related_name='sales', on_delete=models.CASCADE)
     sale_date = models.DateTimeField(default=timezone.now)
+    stats_applied = models.BooleanField(default=False)
 
+    POSTING_STATUS_CHOICES = (
+        ('DRAFT', 'Draft'),
+        ('POSTED', 'Posted'),
+        ('CANCELLED', 'Cancelled'),
+    )
+    is_posted = models.BooleanField(default=False)
+
+    status = models.CharField(
+        max_length=20,
+        choices=POSTING_STATUS_CHOICES,
+        default='DRAFT'
+    )
     PAYMENT_STATUS_CHOICES = [
+        ('Pending', 'Pending'),
         ('Processing', 'Processing'),
         ('Completed', 'Completed'),
         ('Failed', 'Failed'),
@@ -38,6 +54,18 @@ class Sale(models.Model):
 
     exchange_rate_used = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True, editable=False)
 
+    subtotal = models.DecimalField(
+    max_digits=18,
+    decimal_places=2,
+    default=0
+    )
+
+    vat_total = models.DecimalField(
+        max_digits=18,
+        decimal_places=2,
+        default=0
+    )
+    
     class Meta:
         unique_together = ('tenant', 'store', 'receipt_number')
 
@@ -111,6 +139,7 @@ class Sale(models.Model):
     @transaction.atomic
     def cancel_sale(self, cancelled_by=None, reason="Cancelled by user"):
         self.reverse_inventory()
+        reverse_sale_stats(self)
 
         payments = list(self.payments.filter(status="Completed"))
         total_refund = sum(p.amount - p.refunded_amount for p in payments)
@@ -225,33 +254,102 @@ class Sale(models.Model):
         return self
 
     def update_status(self):
+        old_status = self.payment_status
+
         paid = sum(p.amount for p in self.payments.filter(status__iexact="Completed"))
+
         if paid >= self.grand_total:
-            self.payment_status = "Completed"
+            new_status = "Completed"
         elif paid > 0:
-            self.payment_status = "Processing"
+            new_status = "Processing"
         else:
-            self.payment_status = "Pending"
-        self.save(update_fields=['payment_status'])
+            new_status = "Pending"
+
+        if old_status != new_status:
+            self.payment_status = new_status
+            self.save(update_fields=['payment_status'])
+
+            # Apply stats
+            if old_status != "Completed" and new_status == "Completed":
+                apply_sale_stats(self)
+
+            # Reverse stats
+            if old_status == "Completed" and new_status != "Completed":
+                reverse_sale_stats(self)
+
+    # def recalculate_totals(self):
+    #     total_usd = 0
+    #     total_lrd = 0
+    #     for detail in self.sale_details.all():
+    #         active_qty = detail.active_quantity
+    #         line_total = active_qty * detail.price_at_sale
+    #         if detail.currency == 'USD':
+    #             total_usd += line_total
+    #         else:
+    #             total_lrd += line_total
+    #     self.total_usd = total_usd
+    #     self.total_lrd = total_lrd
+
+    #     if self.currency == 'USD':
+    #         self.grand_total = self.total_usd + (self.total_lrd / self.exchange_rate_used)
+    #     else:
+    #         self.grand_total = self.total_lrd + (self.total_usd * self.exchange_rate_used)
 
     def recalculate_totals(self):
-        total_usd = 0
-        total_lrd = 0
+
+        total_usd = Decimal('0.00')
+        total_lrd = Decimal('0.00')
+
+        subtotal = Decimal('0.00')
+        vat_total = Decimal('0.00')
+
         for detail in self.sale_details.all():
+
             active_qty = detail.active_quantity
-            line_total = active_qty * detail.price_at_sale
-            if detail.currency == 'USD':
+
+            line_subtotal = (
+                Decimal(active_qty)
+                * Decimal(detail.price_at_sale)
+            )
+
+            line_tax = detail.tax_amount
+
+            line_total = (
+                line_subtotal
+                + line_tax
+            )
+
+            subtotal += line_subtotal
+            vat_total += line_tax
+
+            if detail.product.currency == 'USD':
                 total_usd += line_total
             else:
                 total_lrd += line_total
+
+        self.subtotal = subtotal
+        self.vat_total = vat_total
+
         self.total_usd = total_usd
         self.total_lrd = total_lrd
 
         if self.currency == 'USD':
-            self.grand_total = self.total_usd + (self.total_lrd / self.exchange_rate_used)
-        else:
-            self.grand_total = self.total_lrd + (self.total_usd * self.exchange_rate_used)
+            self.grand_total = (
+                self.total_usd
+                + (
+                    self.total_lrd
+                    / self.exchange_rate_used
+                )
+            )
 
+        else:
+            self.grand_total = (
+                self.total_lrd
+                + (
+                    self.total_usd
+                    * self.exchange_rate_used
+                )
+            )
     def update_payment_totals(self, skip_if_cancelled=False):
         if skip_if_cancelled and self.payment_status == 'Cancelled':
             return
@@ -325,6 +423,7 @@ class Sale(models.Model):
                 raise ValueError(f"Variant is required for product {product.product_name}.")
             if variant.product_id != product.id:
                 raise ValueError(f"Variant does not belong to product {product.product_name}")
+            
             latest_lot = variant.lots.order_by('-purchase_date').first()
             display_price = latest_lot.retail_selling_price if latest_lot else 0
             quantity_sold = item['quantity']
@@ -337,6 +436,7 @@ class Sale(models.Model):
                 warehouse=warehouse,
                 product=product,
                 product_variant=variant if variant else None,
+                lot__isnull=False,
                 quantity__gt=0,
                 tenant=tenant
             ).select_related('lot').order_by('lot__purchase_date')
@@ -355,6 +455,10 @@ class Sale(models.Model):
                 deduct_qty = min(inventory.quantity, quantity_left)
                 lots_used.append((inventory.lot, deduct_qty))
                 inventory.deduct_quantity(deduct_qty)
+
+                if inventory.lot:
+                    inventory.lot.quantity -= deduct_qty
+                    inventory.lot.save(update_fields=['quantity', 'updated_at'])
                 quantity_left -= deduct_qty
 
             if quantity_left > 0:
@@ -369,6 +473,7 @@ class Sale(models.Model):
                     lot=lot,
                     quantity_sold=qty,
                     price_at_sale=price,
+                    tax_class=product.tax_class,
                     # currency=product_currency
                 )
                 if product_currency == 'USD':
@@ -433,7 +538,6 @@ class Sale(models.Model):
 
         super().save(*args, **kwargs)
 
-
 class SaleDetail(models.Model):
     sale = models.ForeignKey(Sale, related_name="sale_details", on_delete=models.CASCADE)
     product = models.ForeignKey(Product, on_delete=models.CASCADE)
@@ -444,6 +548,37 @@ class SaleDetail(models.Model):
     quantity_sold = models.IntegerField()
     price_at_sale = models.DecimalField(max_digits=10, decimal_places=2)
     cancelled_quantity = models.IntegerField(default=0)
+
+    tax_class = models.ForeignKey(
+    TaxClass,
+    on_delete=models.PROTECT,
+    null=True,
+    blank=True
+    )
+
+    tax_rate_snapshot = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        default=0
+    )
+
+    tax_amount = models.DecimalField(
+        max_digits=18,
+        decimal_places=2,
+        default=0
+    )
+
+    subtotal = models.DecimalField(
+        max_digits=18,
+        decimal_places=2,
+        default=0
+    )
+
+    total = models.DecimalField(
+        max_digits=18,
+        decimal_places=2,
+        default=0
+    )
 
     @property
     def active_quantity(self):
@@ -461,6 +596,40 @@ class SaleDetail(models.Model):
     
     def __str__(self):
         return f"{self.product.product_name} - Lot {self.lot.id} - {self.quantity_sold} units in sale {self.sale.id}"
+
+    def save(self, *args, **kwargs):
+
+        self.subtotal = (
+            Decimal(self.quantity_sold)
+            * Decimal(self.price_at_sale)
+        )
+
+        if self.tax_class:
+
+            self.tax_rate_snapshot = (
+                self.tax_class.rate
+            )
+
+            if self.tax_class.tax_type == 'VATABLE':
+
+                self.tax_amount = (
+                    self.subtotal
+                    * self.tax_class.rate
+                ) / Decimal('100')
+
+            else:
+                self.tax_amount = Decimal('0.00')
+
+        else:
+            self.tax_amount = Decimal('0.00')
+            self.tax_rate_snapshot = Decimal('0.00')
+
+        self.total = (
+            self.subtotal
+            + self.tax_amount
+        )
+
+        super().save(*args, **kwargs)
 
 class Refund(models.Model):
     payment = models.ForeignKey('Payment', related_name='refunds', on_delete=models.CASCADE)
@@ -687,7 +856,20 @@ class SaleReport:
             "currency_breakdown": currency_breakdown
         }
 
+class DashboardMonthlyStat(models.Model):
+    tenant = models.ForeignKey(Client, on_delete=models.CASCADE)
+    year = models.IntegerField()
+    month = models.IntegerField()
 
+    revenue = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    cogs = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    profit = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+
+    class Meta:
+        unique_together = ("tenant", "year", "month")
+        indexes = [
+            models.Index(fields=["tenant", "year", "month"]),
+        ]
 
 
 #How sales report will look 

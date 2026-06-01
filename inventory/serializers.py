@@ -1,10 +1,18 @@
 from rest_framework import serializers
-from .models import Warehouse, Section, Inventory, Transfer, StockRequest
+from .models import (Warehouse, Section, Inventory, Transfer, StockRequest, Supplier,
+    Purchase,
+    PurchaseItem,
+    InventoryMovement)
 from products.models import Product, ProductVariant, ProductLot
 from django.db import transaction
-from products.serializers import ProductLotSerializer, ProductVariantSerializer
+from django.db.models import Q
+from products.serializers import ProductLotSerializer, ProductVariantSerializer, VariantAttributeSerializer
 from django.utils import timezone
 from datetime import timedelta
+from inventory.services.purchase_posting import (
+    PurchasePostingService
+)
+
 
 class WarehouseSerializer(serializers.ModelSerializer):
     class Meta:
@@ -19,11 +27,13 @@ class SectionSerializer(serializers.ModelSerializer):
 class ProductNestedSerializer(serializers.ModelSerializer):
     category = serializers.PrimaryKeyRelatedField(read_only=True)
     product_image_url = serializers.SerializerMethodField()
+    variants = serializers.SerializerMethodField()  # NEW: include variants filtered by warehouse
+
     class Meta:
         model = Inventory.product.field.related_model
         fields = [
             'id', 'product_name', 'unit', 'threshold_value', 'product_image_url',
-            'category', 'currency'
+            'category', 'currency', 'variants'
         ]
 
     def get_product_image_url(self, obj):
@@ -32,38 +42,138 @@ class ProductNestedSerializer(serializers.ModelSerializer):
             return request.build_absolute_uri(obj.product_image.url)
         return None
 
+    # def get_variants(self, obj):
+    #     """Return variants with lots filtered by the warehouse passed in context"""
+    #     warehouse = self.context.get('warehouse')
+    #     if not warehouse:
+    #         return []
+
+    #     variants = obj.variants.all()
+    #     result = []
+    #     today = timezone.now().date() 
+    #     for variant in variants:
+    #         # Get lots linked to this warehouse via Inventory
+    #         inventory_qs = Inventory.objects.filter(product_variant=variant, warehouse=warehouse).select_related('lot')
+    #         lots_data = []
+    #         for inv in inventory_qs:
+    #             if not inv.lot:
+    #                 continue
+    #             lots_data.append({
+    #                 'id': inv.lot.id,
+    #                 'lot_number': inv.lot.lot_number,
+    #                 'quantity': inv.quantity,  # quantity in this warehouse
+    #                 'purchase_date': inv.lot.purchase_date,
+    #                 'wholesale_quantity': inv.lot.wholesale_quantity,
+    #                 'purchase_price': inv.lot.purchase_price,
+    #                 'wholesale_selling_price': inv.lot.wholesale_selling_price,
+    #                 'retail_selling_price': inv.lot.retail_selling_price,
+    #                 'expired_date': inv.lot.expired_date,
+    #             })
+    #         total_qty += inv.quantity
+            
+    #         if any(lot['expired_date'] and lot['expired_date'] < today for lot in lots_data):
+    #             variant_status = "Expired"
+    #         elif total_qty <= 0:
+    #             variant_status = "Out of Stock"
+    #         elif total_qty <= variant.product.threshold_value:
+    #             variant_status = "Low Stock"
+    #         else:
+    #             variant_status = "In Stock"
+
+    #         result.append({
+    #             'id': variant.id,
+    #             'sku': variant.sku,
+    #             'barcode': variant.barcode,
+    #             'barcode_image': variant.barcode_image.url if variant.barcode_image else None,
+    #             'image_url': self.context.get('request').build_absolute_uri(variant.variant_image.url) if variant.variant_image else None,
+    #             'attributes': VariantAttributeSerializer(variant.attributes.all(), many=True).data,
+    #             'lots': lots_data,
+    #             'stock_status': variant_status,
+    #         })
+    #     return result
+    def get_variants(self, obj):
+        """Return variants with lots filtered by the warehouse passed in context"""
+        warehouse = self.context.get('warehouse')
+        if not warehouse:
+            return []
+
+        variants = obj.variants.all()
+        result = []
+        today = timezone.now().date()  # <-- define it here
+
+        for variant in variants:
+            # Get lots linked to this warehouse via Inventory
+            inventory_qs = Inventory.objects.filter(product_variant=variant, warehouse=warehouse).select_related('lot')
+            lots_data = []
+            total_qty = 0
+
+            for inv in inventory_qs:
+                if not inv.lot:
+                    continue
+                lots_data.append({
+                    'id': inv.lot.id,
+                    'lot_number': inv.lot.lot_number,
+                    'quantity': inv.quantity,
+                    'purchase_date': inv.lot.purchase_date,
+                    'wholesale_quantity': inv.lot.wholesale_quantity,
+                    'purchase_price': inv.lot.purchase_price,
+                    'wholesale_selling_price': inv.lot.wholesale_selling_price,
+                    'retail_selling_price': inv.lot.retail_selling_price,
+                    'expired_date': inv.lot.expired_date,
+                })
+                total_qty += inv.quantity
+
+            # Determine variant stock status
+            if any(lot['expired_date'] and lot['expired_date'] < today for lot in lots_data):
+                variant_status = "Expired"
+            elif total_qty <= 0:
+                variant_status = "Out of Stock"
+            elif total_qty <= variant.product.threshold_value:
+                variant_status = "Low Stock"
+            else:
+                variant_status = "In Stock"
+
+            result.append({
+                'id': variant.id,
+                'sku': variant.sku,
+                'barcode': variant.barcode,
+                'barcode_image': variant.barcode_image.url if variant.barcode_image else None,
+                'image_url': self.context.get('request').build_absolute_uri(variant.variant_image.url) if variant.variant_image else None,
+                'attributes': VariantAttributeSerializer(variant.attributes.all(), many=True).data,
+                'lots': lots_data,
+                'stock_status': variant_status,
+            })
+        return result
+
 class InventorySerializer(serializers.ModelSerializer):
-    variant = ProductVariantSerializer(source='product_variant')
-    product  = ProductNestedSerializer()
+    product = ProductNestedSerializer()
     stock_status = serializers.SerializerMethodField()
     total_quantity = serializers.SerializerMethodField()
     warehouse_type = serializers.CharField(source='warehouse.warehouse_type', read_only=True)
     overview = serializers.SerializerMethodField()
-    variant_stock_status = serializers.SerializerMethodField()
-    
-    
-    def get_variant_stock_status(self, obj):
-        variant = obj.product_variant
-        today = timezone.now().date()
 
-        # Assuming 'lots' is the related name on ProductVariant.lots (adjust if different)
-        lots = variant.lots.all()
+    class Meta:
+        model = Inventory
+        fields = [
+            'id', 'product', 'stock_status', 'total_quantity', 'warehouse_type',
+            'overview', 'added_at', 'updated_at'
+        ]
 
-        # Check if any lot is expired or expiring soon
-        for lot in lots:
-            if lot.expired_date and lot.expired_date < today:
-                return "Expired"
-        
-        threshold = obj.product.threshold_value
-        qty = obj.quantity
+    def to_representation(self, instance):
+        self.fields['product'].context.update({'warehouse': instance.warehouse, 'request': self.context.get('request')})
+        return super().to_representation(instance)
 
-        if qty <= 0:
+    def get_total_quantity(self, obj):
+        return obj.quantity
+
+    def get_stock_status(self, obj):
+        if obj.quantity <= 0:
             return "Out of Stock"
-        elif qty <= threshold:
+        threshold = obj.product.threshold_value or 0
+        if obj.quantity <= threshold:
             return "Low Stock"
-        else:
-            return "In Stock"
-
+        return "In Stock"
+    
     @staticmethod
     def get_variants_warnings(inventories):
         today = timezone.now().date()
@@ -73,14 +183,13 @@ class InventorySerializer(serializers.ModelSerializer):
 
         for inv in inventories:
             variant = inv.product_variant
-            lots = variant.lots.all()
+            lots = variant.lots.all()  # You can filter by warehouse if needed
 
-            # Check expired lots
             if any(lot.expired_date and lot.expired_date < today for lot in lots):
                 expired_flag = True
 
             qty = inv.quantity
-            threshold = inv.product.threshold_value
+            threshold = inv.product.threshold_value or 0
 
             if qty <= 0:
                 out_of_stock_flag = True
@@ -96,246 +205,119 @@ class InventorySerializer(serializers.ModelSerializer):
             warnings.append("Some variants are running low")
 
         return warnings
-
-
-    class Meta:
-        model = Inventory
-        fields = [
-            'id', 'product',
-            'quantity', 'total_quantity','stock_status', 
-            'warehouse_type', 'variant', 'overview', 'added_at', 'updated_at', 
-            'variant_stock_status'
-        ]
-
-    def get_total_quantity(self, obj):
-        return obj.compute_total_quantity()
-
-    def get_stock_status(self, obj):
-        return obj.compute_stock_status()
     
     # def get_overview(self, obj):
-    #     if self.context.get('include_overview', False) and self.context.get('first_item_id') == obj.id:
+    #     if self.context.get('include_overview', False):
     #         inventories = self.context.get('all_inventories', [])
     #         today = timezone.now().date()
 
+    #         store_inventories = [inv for inv in inventories if inv.warehouse.warehouse_type != "general"]
+    #         general_inventories = [inv for inv in inventories if inv.warehouse.warehouse_type == "general"]
+
     #         def calculate_stats(inventories_subset):
-    #             product_ids = set()
-    #             category_ids = set()
-    #             in_stock = 0
-    #             out_of_stock = 0
-    #             low_stock = 0
-    #             expiring_soon = 0
-
-    #             for inv in inventories_subset:
-    #                 product = inv.product
-    #                 product_ids.add(product.id)
-    #                 if product.category_id:
-    #                     category_ids.add(product.category_id)
-
-    #                 status = inv.compute_stock_status()
-
-    #                 if status == "In Stock":
-    #                     in_stock += 1
-    #                 elif status == "Low Stock":
-    #                     low_stock += 1
-    #                 elif status == "Out of Stock":
-    #                     out_of_stock += 1
-
-    #                 if inv.product_variant:
-    #                     for lot in inv.product_variant.lots.all():
-    #                         if lot.expired_date and today < lot.expired_date <= today + timedelta(days=30):
-    #                             expiring_soon += 1
-    #                             break  # Count each inventory once even if multiple lots are expiring
-
-
+    #             total_products = len(set(inv.product.id for inv in inventories_subset))
+    #             in_stock = sum(1 for inv in inventories_subset if inv.quantity > (inv.product.threshold_value or 0))
+    #             low_stock = sum(1 for inv in inventories_subset if 0 < inv.quantity <= (inv.product.threshold_value or 0))
+    #             out_of_stock = sum(1 for inv in inventories_subset if inv.quantity <= 0)
+    #             expiring_soon = sum(
+    #                 1 for inv in inventories_subset
+    #                 for lot in inv.product_variant.lots.filter(warehouse=inv.warehouse)
+    #                 if lot.expired_date and today < lot.expired_date <= today + timedelta(days=30)
+    #             )
     #             return {
-    #                 "total_products": len(product_ids),
-    #                 "total_categories": len(category_ids),
+    #                 "total_products": total_products,
     #                 "in_stock": in_stock,
-    #                 "out_of_stock": out_of_stock,
     #                 "low_stock": low_stock,
+    #                 "out_of_stock": out_of_stock,
     #                 "expiring_soon": expiring_soon,
     #             }
 
-    #         general_inventories = [inv for inv in inventories if inv.warehouse.warehouse_type == "general"]
-    #         store_inventories = [inv for inv in inventories if inv.warehouse.warehouse_type != "general"]
-
     #         return {
-    #             "general_inventory": calculate_stats(general_inventories),
     #             "store_inventory": calculate_stats(store_inventories),
+    #             "general_inventory": calculate_stats(general_inventories),
     #         }
     #     return None
 
-    def get_overview(self, obj):
-        if self.context.get('include_overview', False) and self.context.get('first_item_id') == obj.id:
-            inventories = self.context.get('all_inventories', [])
-            today = timezone.now().date()
+    @staticmethod
+    def compute_overview(inventories):
+        """Reusable method to compute store/general overview"""
+        today = timezone.now().date()
 
-            def calculate_stats(inventories_subset):
-                product_ids = set()
-                category_ids = set()
-                in_stock = 0
-                out_of_stock = 0
-                low_stock = 0
-                expiring_soon = 0
+        store_inventories = [inv for inv in inventories if inv.warehouse.warehouse_type != "general"]
+        general_inventories = [inv for inv in inventories if inv.warehouse.warehouse_type == "general"]
 
-                processed_variants = set()  # Prevent double-counting
-
-                for inv in inventories_subset:
-                    if not inv.product_variant:
-                        continue
-
-                    variant_id = inv.product_variant.id
-                    if variant_id in processed_variants:
-                        continue  # Skip duplicates (same variant across multiple lots)
-                    processed_variants.add(variant_id)
-
-                    product = inv.product
-                    product_ids.add(product.id)
-                    if product.category_id:
-                        category_ids.add(product.category_id)
-
-                    # Stock status at VARIANT level
-                    status = inv.compute_stock_status()
-                    if status == "In Stock":
-                        in_stock += 1
-                    elif status == "Low Stock":
-                        low_stock += 1
-                    elif status == "Out of Stock":
-                        out_of_stock += 1
-
-                    # Expiring soon → only if at least one lot of this variant is expiring
-                    for lot in inv.product_variant.lots.all():
-                        if lot.expired_date and today < lot.expired_date <= today + timedelta(days=30):
-                            expiring_soon += 1
-                            break
-
-                return {
-                    "total_products": len(product_ids),
-                    "total_categories": len(category_ids),
-                    "in_stock": in_stock,
-                    "out_of_stock": out_of_stock,
-                    "low_stock": low_stock,
-                    "expiring_soon": expiring_soon,
-                }
-
-            general_inventories = [inv for inv in inventories if inv.warehouse.warehouse_type == "general"]
-            store_inventories = [inv for inv in inventories if inv.warehouse.warehouse_type != "general"]
-
+        def calculate_stats(inventories_subset):
+            total_products = len(set(inv.product.id for inv in inventories_subset))
+            in_stock = sum(1 for inv in inventories_subset if inv.quantity > (inv.product.threshold_value or 0))
+            low_stock = sum(1 for inv in inventories_subset if 0 < inv.quantity <= (inv.product.threshold_value or 0))
+            out_of_stock = sum(1 for inv in inventories_subset if inv.quantity <= 0)
+            expiring_soon = sum(
+                1 for inv in inventories_subset
+                for lot in inv.product_variant.lots.filter(warehouse=inv.warehouse)
+                if lot.expired_date and today < lot.expired_date <= today + timedelta(days=30)
+            )
             return {
-                "general_inventory": calculate_stats(general_inventories),
-                "store_inventory": calculate_stats(store_inventories),
+                "total_products": total_products,
+                "in_stock": in_stock,
+                "low_stock": low_stock,
+                "out_of_stock": out_of_stock,
+                "expiring_soon": expiring_soon,
             }
+
+        return {
+            "store_inventory": calculate_stats(store_inventories),
+            "general_inventory": calculate_stats(general_inventories),
+        }
+
+    def get_overview(self, obj):
+        if self.context.get('include_overview', False):
+            inventories = self.context.get('all_inventories', [])
+            return self.compute_overview(inventories)
         return None
 
-
-#helper serializer to ensure bulk addition of Products
-# class AddInventoryListSerializer(serializers.ListSerializer):
-#     def create(self, validated_data_list):
-#         if not validated_data_list:
-#             return []
-
-#         store = validated_data_list[0]['store']
-#         tenant = store.tenant
-#         warehouse = validated_data_list[0]['warehouse']
-
-#         # Prepare keys to match existing inventories
-#         key = (data['lot'].id, data['warehouse'].id, data['section'].id)
-
-#         # Fetch existing inventories in bulk
-#         existing_inventories = Inventory.objects.filter(
-#             tenant=tenant,
-#             warehouse=warehouse,
-#             product_id__in=[k[0] for k in key],
-#             product_variant_id__in=[k[1] for k in key],  # <-- FIX: include variant
-#             lot_id__in=[k[2] for k in key],
-#             section_id__in=[k[3] for k in key]  # <-- FIX: correct index for section
-#         )
-
-#         existing_map = {
-#             (inv.lot_id, inv.warehouse_id, inv.section_id): inv
-#             for inv in existing_inventories
-#         }
-
-
-#         new_inventories = []
-#         inventories_to_update = []
-
-#         for data in validated_data_list:
-#             key = (data['product'].id, data['variant'].id, data['lot'].id, data['section'].id)
-#             if key in existing_map:
-#                 inv = existing_map[key]
-#                 inv.quantity += data['quantity']
-#                 inventories_to_update.append(inv)
-#             else:
-#                 new_inventories.append(Inventory(
-#                     tenant=tenant,
-#                     warehouse=warehouse,
-#                     section=data['section'],
-#                     product=data['product'],
-#                     product_variant=data['variant'],
-#                     lot=data['lot'],  # NEW: Assign lot
-#                     quantity=data['quantity']
-#                 ))
-
-#         with transaction.atomic():
-#             if new_inventories:
-#                 Inventory.objects.bulk_create(new_inventories)
-#             if inventories_to_update:
-#                 Inventory.objects.bulk_update(inventories_to_update, ['quantity'])
-
-#         return new_inventories + inventories_to_update
-from django.db.models import Q
 
 class AddInventoryListSerializer(serializers.ListSerializer):
     def create(self, validated_data_list):
         if not validated_data_list:
             return []
 
+        # Assume all items have the same warehouse/store context
         store = validated_data_list[0]['store']
         tenant = store.tenant
         warehouse = validated_data_list[0]['warehouse']
 
-        # Build all keys from the incoming data
-        keys = [
-            (
-                data['product'].id,
-                data['variant'].id,
-                data['lot'].id,
-                data['section'].id
-            )
-            for data in validated_data_list
-        ]
-
-        # Build a Q object to match exact combinations
-        query = Q()
-        for k in keys:
-            query |= Q(
-                product_id=k[0],
-                product_variant_id=k[1],
-                lot_id=k[2],
-                section_id=k[3],
-            )
-
-        existing_inventories = Inventory.objects.filter(
-            tenant=tenant,
-            warehouse=warehouse
-        ).filter(query)
-
-        # Map by composite key
-        existing_map = {
-            (inv.product_id, inv.product_variant_id, inv.lot_id, inv.section_id): inv
-            for inv in existing_inventories
-        }
-
         new_inventories = []
         inventories_to_update = []
 
-        # Check each incoming data
         for data in validated_data_list:
-            key = (data['product'].id, data['variant'].id, data['lot'].id, data['section'].id)
-            if key in existing_map:
-                inv = existing_map[key]
+            # --- Determine the lot to use ---
+            if warehouse.warehouse_type == 'store':
+                # Create a new independent lot for this store
+                store_lot = ProductLot.objects.create(
+                    variant=data['variant'],
+                    warehouse=warehouse,
+                    quantity=data['quantity'],
+                    purchase_date=data['lot'].purchase_date,
+                    purchase_price=data['lot'].purchase_price,
+                    wholesale_quantity=data['lot'].wholesale_quantity,
+                    wholesale_selling_price=data['lot'].wholesale_selling_price,
+                    retail_selling_price=data['lot'].retail_selling_price,
+                    expired_date=data['lot'].expired_date,
+                )
+                data['lot'] = store_lot  # make sure inventory points to the new store lot
+
+            # --- Check if an inventory row already exists ---
+            inventory_qs = Inventory.objects.filter(
+                tenant=tenant,
+                warehouse=warehouse,
+                product=data['product'],
+                product_variant=data['variant'],
+                lot=data['lot'],
+                section=data['section']
+            )
+
+            if inventory_qs.exists():
+                inv = inventory_qs.first()
                 inv.quantity += data['quantity']
                 inventories_to_update.append(inv)
             else:
@@ -349,7 +331,7 @@ class AddInventoryListSerializer(serializers.ListSerializer):
                     quantity=data['quantity']
                 ))
 
-        # Save in bulk
+        # --- Save all inventories ---
         with transaction.atomic():
             if new_inventories:
                 Inventory.objects.bulk_create(new_inventories)
@@ -393,10 +375,9 @@ class AddInventorySerializer(serializers.Serializer):
 
          # Validate Lot
         try:
-            lot = variant.lots.get(id=data['lot_id'])
+            lot = ProductLot.objects.get(id=data['lot_id'])
         except ProductLot.DoesNotExist:
-            raise serializers.ValidationError("Lot does not belong to this variant.")
-        data['lot'] = lot
+            raise serializers.ValidationError("Lot not found.")
 
         # Validate or assign Section
         section_id = data.get('section_id')
@@ -425,3 +406,126 @@ class StockRequestSerializer(serializers.ModelSerializer):
     class Meta:
         model = StockRequest
         fields = ['store', 'warehouse_from', 'warehouse_to', 'product', 'quantity_requested', 'status', 'request_date']
+
+class SupplierSerializer(
+    serializers.ModelSerializer
+):
+
+    class Meta:
+        model = Supplier
+        fields = '__all__'
+
+
+class PurchaseItemSerializer(
+    serializers.ModelSerializer
+):
+
+    product_name = serializers.CharField(
+        source='product.product_name',
+        read_only=True
+    )
+
+    variant_sku = serializers.CharField(
+        source='product_variant.sku',
+        read_only=True
+    )
+
+    class Meta:
+        model = PurchaseItem
+
+        fields = [
+            'id',
+            'purchase',
+            'product',
+            'product_name',
+            'product_variant',
+            'variant_sku',
+            'quantity',
+            'unit_cost',
+            'subtotal',
+            'vat_rate',
+            'vat_amount',
+            'total'
+        ]
+
+        read_only_fields = [
+            'subtotal',
+            'vat_amount',
+            'total'
+        ]
+
+class PurchaseSerializer(serializers.ModelSerializer):
+
+    items = PurchaseItemSerializer(many=True)
+
+    supplier_name = serializers.CharField(
+        source="supplier.name",
+        read_only=True
+    )
+
+    class Meta:
+        model = Purchase
+
+        fields = [
+            "id",
+            "tenant",
+            "store_name",
+            "supplier",
+            "supplier_name",
+            "invoice_number",
+            "invoice_date",
+            "subtotal",
+            "vat_total",
+            "grand_total",
+            "status",
+            "is_posted",
+            "journal_entry_id",
+            "created_at",
+            "items",
+        ]
+
+        read_only_fields = [
+            "tenant",
+            "subtotal",
+            "vat_total",
+            "grand_total",
+            "status",
+            "is_posted",
+            "journal_entry_id",
+            "created_at",
+        ]
+class InventoryMovementSerializer(serializers.ModelSerializer):
+
+    product_name = serializers.CharField(
+        source="product.product_name",
+        read_only=True
+    )
+
+    warehouse_name = serializers.CharField(
+        source="warehouse.name",
+        read_only=True
+    )
+
+    class Meta:
+        model = InventoryMovement
+
+        fields = [
+            "id",
+            "tenant",
+            "warehouse",
+            "warehouse_name",
+            "product",
+            "product_name",
+            "product_variant",
+            "lot",
+            "purchase",
+            "sale",
+            "transfer",
+            "movement_type",
+            "quantity",
+            "unit_cost",
+            "total_cost",
+            "reference",
+            "remarks",
+            "created_at",
+        ]

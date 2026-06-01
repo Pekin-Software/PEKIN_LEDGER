@@ -1,8 +1,9 @@
 from pathlib import Path
 import os
-import dj_database_url
+# import dj_database_url
 from decouple import config, Config, RepositoryEnv
 from datetime import timedelta
+from storages.backends.s3boto3 import S3Boto3Storage
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -14,7 +15,7 @@ else:
 
 SECRET_KEY = 'django-insecure-_!gb#a3e10(y9ur98k1h(pc2(w&+2*+v+jj*86s#lj2#)$xb86'
 
-DEBUG = False
+DEBUG = True
 
 ALLOWED_HOSTS = [
     "api.pekinledger.com",
@@ -39,7 +40,6 @@ SHARED_APPS = [
     "corsheaders",
 ]
 TENANT_APPS = [
-    "client_app", 
     "inventory",
     "products",
     "records",
@@ -48,6 +48,15 @@ TENANT_APPS = [
     "order",
     "finance",
     "storages",
+
+    'ledger',
+    'taxation',
+    'audit',
+    'payroll',
+    'accounting',
+    'reconciliation',
+    'compliance',
+    'ai_analytics',
 ]
 
 INSTALLED_APPS = SHARED_APPS + [app for app in TENANT_APPS if app not in SHARED_APPS]
@@ -59,11 +68,7 @@ REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'customers.authentication.TenantAwareJWTAuthentication',
         'rest_framework_simplejwt.authentication.JWTAuthentication',
-    ),
-    "DEFAULT_PERMISSION_CLASSES": (
-        "rest_framework.permissions.IsAuthenticated",
-    ),
-    'EXCEPTION_HANDLER': 'customers.exceptions.custom_exception_handler'
+    )
 }
 
 SIMPLE_JWT = {
@@ -114,11 +119,6 @@ WSGI_APPLICATION = 'ledger_api.wsgi.application'
 # --------------------------------------------------------------------
 # Static and Media Files
 # --------------------------------------------------------------------
-AWS_ACCESS_KEY_ID = config("AWS_ACCESS_KEY_ID")
-AWS_SECRET_ACCESS_KEY = config("AWS_SECRET_ACCESS_KEY")
-
-from storages.backends.s3boto3 import S3Boto3Storage
-
 class StaticStorage(S3Boto3Storage):
     location = 'static'
     default_acl = 'public-read'
@@ -127,45 +127,49 @@ class MediaStorage(S3Boto3Storage):
     location = 'media'
     default_acl = 'public-read'
 
-# STATIC_URL = 'static/'
+STATIC_URL = 'static/'
+# Comment these when deploying 
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
-# MEDIA_URL = '/media/'
-# MEDIA_ROOT = BASE_DIR / 'media'
-AWS_STORAGE_BUCKET_NAME = config("AWS_STORAGE_BUCKET_NAME")
-AWS_S3_REGION_NAME = config("AWS_REGION", default="eu-west-3")
-AWS_S3_ENDPOINT_URL = config("AWS_S3_ENDPOINT_URL", default=None)
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
 
-STATICFILES_STORAGE = 'ledger_api.settings.StaticStorage'
-DEFAULT_FILE_STORAGE = 'ledger_api.settings.MediaStorage'
+# AWS_ACCESS_KEY_ID = config("AWS_ACCESS_KEY_ID")
+# AWS_SECRET_ACCESS_KEY = config("AWS_SECRET_ACCESS_KEY")
+# AWS_STORAGE_BUCKET_NAME = config("AWS_STORAGE_BUCKET_NAME")
+# AWS_S3_REGION_NAME = config("AWS_REGION", default="eu-west-3")
+# AWS_S3_ENDPOINT_URL = config("AWS_S3_ENDPOINT_URL", default=None)
 
-STATIC_URL = f"https://{AWS_STORAGE_BUCKET_NAME}.s3.{AWS_S3_REGION_NAME}.amazonaws.com/static/"
-MEDIA_URL = f"https://{AWS_STORAGE_BUCKET_NAME}.s3.{AWS_S3_REGION_NAME}.amazonaws.com/media/"
+# STATICFILES_STORAGE = 'ledger_api.settings.StaticStorage'
+# DEFAULT_FILE_STORAGE = 'ledger_api.settings.MediaStorage'
+
+# STATIC_URL = f"https://{AWS_STORAGE_BUCKET_NAME}.s3.{AWS_S3_REGION_NAME}.amazonaws.com/static/"
+# MEDIA_URL = f"https://{AWS_STORAGE_BUCKET_NAME}.s3.{AWS_S3_REGION_NAME}.amazonaws.com/media/"
 
 # --------------------------------------------------------------------
 # Database & Templates
 # --------------------------------------------------------------------
 
-# DATABASES = {
-#     'default': {
-#         'ENGINE': 'django_tenants.postgresql_backend',  
-#         'NAME': 'pekin_ledger_db',
-#         'USER': 'pekin',
-#         'PASSWORD': 'ledger@2025',
-#         'HOST': 'localhost', 
-#         'PORT': '5432',
-#     }
-# }
-
 DATABASES = {
     'default': {
         'ENGINE': 'django_tenants.postgresql_backend',  
-        'NAME': config("DB_NAME"),
-        'USER': config("DB_USER"),
-        'PASSWORD': config("DB_PASSWORD"),
-        'HOST': config("DB_HOST"),
-        'PORT': config("DB_PORT", default="5432"),
+        'NAME': 'pekin_ledger_db',
+        'USER': 'pekin',
+        'PASSWORD': 'ledger@2025',
+        'HOST': 'localhost', 
+        'PORT': '5432',
     }
 }
+
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django_tenants.postgresql_backend',  
+#         'NAME': config("DB_NAME"),
+#         'USER': config("DB_USER"),
+#         'PASSWORD': config("DB_PASSWORD"),
+#         'HOST': config("DB_HOST"),
+#         'PORT': config("DB_PORT", default="5432"),
+#     }
+# }
 
 # DATABASES = {
 #     'default': dj_database_url.config(

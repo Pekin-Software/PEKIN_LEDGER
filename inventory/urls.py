@@ -1,13 +1,29 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views import WarehouseViewSet, SectionViewSet, InventoryViewSet, TransferViewSet, StockRequestViewSet
+from .views import WarehouseViewSet, SectionViewSet, TransferViewSet, StockRequestViewSet, SupplierViewSet, PurchaseViewSet, InventoryMovementViewSet
 
 router = DefaultRouter()
 router.register(r'warehouses', WarehouseViewSet, basename='warehouse' )
 router.register(r'sections', SectionViewSet, basename='sections')
-router.register(r'inventory', InventoryViewSet, basename='inventory')
+# router.register(r'inventory', InventoryViewSet, basename='inventory')
 router.register(r'transfers', TransferViewSet, basename='transefer')
 router.register(r'stockrequests', StockRequestViewSet, basename='stockrequests')
+router.register(
+    r'inventory-movements',
+    InventoryMovementViewSet,
+    basename='inventory-movements'
+)
+
+router.register(
+    r'suppliers',
+    SupplierViewSet,
+    basename='suppliers'
+)
+router.register(
+    r'purchases',
+    PurchaseViewSet,
+    basename='purchases'
+)
 
 urlpatterns = [
     path('api/', include(router.urls)),

@@ -5,7 +5,7 @@ from django.db import transaction
 from django.db.models import Sum
 from .models import Product, VariantAttribute, Category, ProductLot, ProductVariant
 from inventory.models import Warehouse, Inventory, Section
-
+from django.utils import timezone
 
 class CategorySerializer(serializers.ModelSerializer):
     id = serializers.IntegerField(read_only=True)
@@ -113,6 +113,17 @@ class ProductLotSerializer(serializers.ModelSerializer):
 
     @transaction.atomic
     def create(self, validated_data):
+        product = validated_data["variant"].product
+        tenant = product.tenant
+
+        # 🔥 Get general warehouse for this tenant
+        general_warehouse = Warehouse.objects.filter(
+            tenant=tenant, warehouse_type='general'
+        ).first()
+        if not general_warehouse:
+            raise ValidationError("No general warehouse found for this tenant.")
+
+        validated_data["warehouse"] = general_warehouse
         instance = ProductLot.objects.create(**validated_data)
         self._sync_inventory(instance, instance.quantity)  # Sync inventory on create
         return instance
@@ -121,11 +132,18 @@ class ProductVariantSerializer(serializers.ModelSerializer):
     id = serializers.IntegerField(required=False)
     attributes = VariantAttributeSerializer(many=True, required=False)
     lots = ProductLotSerializer(many=True)
-
+    image_url = serializers.SerializerMethodField(read_only=True)
+    stock_status = serializers.SerializerMethodField()
     class Meta:
         model = ProductVariant
-        fields = ['id', 'sku', 'barcode', 'barcode_image', 'attributes', 'lots']
+        fields = ['id', 'sku', 'barcode', 'barcode_image', 'image_url', 'attributes', 'lots', 'stock_status']
 
+    def get_image_url(self, obj):
+        request = self.context.get('request')
+        if obj.variant_image:
+            return request.build_absolute_uri(obj.variant_image.url) if request else obj.variant_image.url
+        return None
+    
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         if kwargs.get('partial', False):
@@ -138,6 +156,23 @@ class ProductVariantSerializer(serializers.ModelSerializer):
         if len(names) != len(set(names)):
             raise ValidationError({"attributes": "Duplicate attribute names are not allowed for a variant."})
         return data
+    
+    
+    def get_stock_status(self, obj):
+        """Compute stock status based on lots and quantity"""
+        today = timezone.now().date()
+        warehouse = self.context.get('warehouse')
+        lots = obj.lots.filter(warehouse=warehouse) if warehouse else obj.lots.all()
+        total_quantity = sum(lot.quantity for lot in lots)
+        if any(lot.expired_date and lot.expired_date < today for lot in obj.lots.all()):
+            return "Expired"
+        elif total_quantity <= 0:
+            return "Out of Stock"
+        elif total_quantity <= obj.product.threshold_value:
+            return "Low Stock"
+        return "In Stock"
+    
+
     
     # def get_lots(self, variant):
     #     # Get inventory from context
@@ -193,13 +228,11 @@ class ProductSerializer(serializers.ModelSerializer):
     variants = ProductVariantSerializer(many=True, required=False)
     category = serializers.PrimaryKeyRelatedField(queryset=Category.objects.all(), required=False)
     image_url = serializers.SerializerMethodField(read_only=True)
-    lots = serializers.SerializerMethodField(read_only=True)
 
     class Meta:
         model = Product
         fields = ['id', 'product_name', 'category', 'unit', 'threshold_value',
-                   'currency',  'product_image', 'variants', 'image_url', 'lots' ]
-
+                   'currency',  'image_url', 'variants']
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -257,36 +290,76 @@ class ProductSerializer(serializers.ModelSerializer):
                         return True
         return False
 
+    # @transaction.atomic
+    # def create(self, validated_data):
+    #     variants_data = validated_data.pop('variants', [])
+    
+
+    #     for variant_data in variants_data:
+    #         attributes_data = variant_data.get('attributes', [])
+    #         lots_data = variant_data.get('lots', [])
+    #         for lot_data in lots_data:
+    #             if self._product_variant_lot_exists(
+    #         tenant=self.context['request'].tenant,
+    #         product_name=validated_data['product_name'],
+    #         category=validated_data['category'],
+    #         attributes_data=attributes_data,
+    #         lot_data=lot_data
+    #     ):
+
+    #                 raise ValidationError({"detail": "This product with the same variant and lot already exists."})
+
+    #     # If passed all checks → create
+    #     product = Product.objects.create(**validated_data)
+    #     for variant_data in variants_data:
+    #         attributes_data = variant_data.pop('attributes', [])
+    #         lots_data = variant_data.pop('lots', [])
+    #         variant = ProductVariant.objects.create(product=product, **variant_data)
+    #         VariantAttribute.objects.bulk_create([VariantAttribute(variant=variant, **attr) for attr in attributes_data])
+    #         for lot_data in lots_data:
+    #             ProductLotSerializer().create({**lot_data, "variant": variant})
+    #     return product
+
     @transaction.atomic
     def create(self, validated_data):
         variants_data = validated_data.pop('variants', [])
-    
 
+        # --- Validation step ---
         for variant_data in variants_data:
             attributes_data = variant_data.get('attributes', [])
             lots_data = variant_data.get('lots', [])
+
             for lot_data in lots_data:
                 if self._product_variant_lot_exists(
-            tenant=self.context['request'].tenant,
-            product_name=validated_data['product_name'],
-            category=validated_data['category'],
-            attributes_data=attributes_data,
-            lot_data=lot_data
-        ):
-
+                    tenant=self.context['request'].tenant,
+                    product_name=validated_data['product_name'],
+                    category=validated_data['category'],
+                    attributes_data=attributes_data,
+                    lot_data=lot_data
+                ):
                     raise ValidationError({"detail": "This product with the same variant and lot already exists."})
 
-        # If passed all checks → create
+        # --- Create product ---
         product = Product.objects.create(**validated_data)
+
+        # --- Create variants ---
         for variant_data in variants_data:
             attributes_data = variant_data.pop('attributes', [])
             lots_data = variant_data.pop('lots', [])
-            variant = ProductVariant.objects.create(product=product, **variant_data)
-            VariantAttribute.objects.bulk_create([VariantAttribute(variant=variant, **attr) for attr in attributes_data])
-            for lot_data in lots_data:
-                ProductLotSerializer().create({**lot_data, "variant": variant})
-        return product
 
+            variant = ProductVariant.objects.create(product=product, **variant_data)
+
+            # Save attributes (supports multiple per variant)
+            VariantAttribute.objects.bulk_create([
+                VariantAttribute(variant=variant, **attr) for attr in attributes_data
+            ])
+
+            # Save lots with validation
+            lot_serializer = ProductLotSerializer()
+            for lot_data in lots_data:
+                lot_serializer.create({**lot_data, "variant": variant})
+
+        return product
 
     # @transaction.atomic
     # def update(self, instance, validated_data):
@@ -366,7 +439,6 @@ class ProductSerializer(serializers.ModelSerializer):
                             lot_serializer.create({**lot_data, "variant": variant_instance})
 
         return instance
-    
 
 
 

@@ -3,9 +3,29 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from .models import Warehouse, Section, Inventory, TransferLog, StockRequest, ProductLot, Product, Transfer
-from stores.models import Employee, Store
+from stores.models import Store
+from payroll.models import Employee
 from .serializers import (WarehouseSerializer, SectionSerializer, TransferSerializer, StockRequestSerializer, 
                 AddInventorySerializer, InventorySerializer)
+from inventory.models import (
+    Supplier,
+    Purchase,
+    InventoryMovement
+)
+
+from inventory.serializers import (
+    SupplierSerializer,
+    PurchaseSerializer,
+    InventoryMovementSerializer
+)
+
+from inventory.services.purchase_posting import (
+    PurchasePostingService
+)
+
+from inventory.services.sales_posting import (
+    SalesPostingService
+)
 from django.db import transaction, models
 from collections import defaultdict
 
@@ -81,619 +101,6 @@ class SectionViewSet(viewsets.ViewSet):
         section.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
-#Inventory Viewset (using Lot for FIFO)
-class InventoryViewSet(viewsets.ViewSet):
-    queryset = Inventory.objects.all()
-    permission_classes = [IsAuthenticated, IsAdminUser]
-
-    # @action(detail=True, methods=['post'], url_path='add-inventory', permission_classes=[IsAuthenticated])
-    # def add_inventory(self, request, pk=None):
-    #     try:
-    #         store = Store.objects.get(pk=pk)
-    #     except Store.DoesNotExist:
-    #         return Response({"error": "Store not found."}, status=status.HTTP_404_NOT_FOUND)
-
-    #     store_warehouse = store.warehouses.first()
-    #     if not store_warehouse:
-    #         return Response({"error": "Store has no warehouse."}, status=status.HTTP_400_BAD_REQUEST)
-
-    #     serializer = AddInventorySerializer(
-    #         data=request.data,
-    #         many=True,
-    #         context={'request': request, 'store': store, 'warehouse': store_warehouse}
-    #     )
-    #     serializer.is_valid(raise_exception=True)
-    #     validated_data_list = serializer.validated_data
-
-    #     general_warehouse = Warehouse.objects.filter(
-    #         tenant=store.tenant, warehouse_type='general'
-    #     ).first()
-    #     if not general_warehouse:
-    #         return Response({"error": "General warehouse not found."}, status=status.HTTP_400_BAD_REQUEST)
-
-    #     # Get or create default section for the general warehouse
-    #     general_section = Section.objects.filter(warehouse=general_warehouse).first()
-    #     if not general_section:
-    #         general_section = Section.objects.create(
-    #             warehouse=general_warehouse,
-    #             name=f"{general_warehouse.name} - Default Section"
-    #         )
-
-    #     results = []
-
-    #     with transaction.atomic():
-    #         # PRE-CHECK: Ensure stock is sufficient for all requested items
-    #         for item in validated_data_list:
-    #             product = item['product']
-    #             variant = item['variant']
-    #             if not variant:
-    #                 return Response({
-    #                     "error": f"Product {product.id} has no variants."
-    #                 }, status=status.HTTP_400_BAD_REQUEST)
-
-    #             quantity_needed = item['quantity']
-
-    #             lots = ProductLot.objects.filter(
-    #                 variant=variant,
-    #                 quantity__gt=0
-    #             ).order_by('purchase_date', 'id')
-
-    #             total_available = sum(lot.quantity for lot in lots)
-    #             if total_available < quantity_needed:
-    #                 return Response({
-    #                     "error": f"Insufficient stock for product {product.id} (variant {variant.id}). "
-    #                             f"Requested {quantity_needed}, available {total_available}."
-    #                 }, status=status.HTTP_400_BAD_REQUEST)
-
-    #             general_inventory = Inventory.objects.filter(
-    #                 warehouse=general_warehouse,
-    #                 tenant=store.tenant,
-    #                 section=general_section,
-    #                 product=product,
-    #                 product_variant=variant
-    #             ).select_for_update().first()
-
-    #             if not general_inventory or general_inventory.quantity < quantity_needed:
-    #                 return Response({
-    #                     "error": f"Insufficient general warehouse inventory for product {product.id}."
-    #                 }, status=status.HTTP_400_BAD_REQUEST)
-
-    #         # ALLOCATION: Deduct from general, lots, and add to store inventory
-    #         for item in validated_data_list:
-    #             product = item['product']
-    #             variant = item['variant']
-    #             quantity_needed = item['quantity']
-    #             total_allocated = 0
-
-    #             lots = ProductLot.objects.filter(
-    #                 variant=variant,
-    #                 quantity__gt=0
-    #             ).order_by('purchase_date', 'id')
-
-    #             general_inventory = Inventory.objects.get(
-    #                 warehouse=general_warehouse,
-    #                 tenant=store.tenant,
-    #                 section=general_section,
-    #                 product=product,
-    #                 product_variant=variant
-    #             )
-
-    #             for lot in lots:
-    #                 if quantity_needed <= 0:
-    #                     break
-
-    #                 available_qty = lot.quantity
-    #                 allocate_qty = min(available_qty, quantity_needed)
-
-    #                 # Deduct from lot
-    #                 lot.quantity -= allocate_qty
-    #                 lot.save()
-
-    #                 # Deduct from general inventory
-    #                 general_inventory.quantity -= allocate_qty
-    #                 general_inventory.save()
-
-    #                 # Always CREATE a new inventory row for the store
-    #                 section = store_warehouse.sections.first()
-    #                 if not section:
-    #                     section = Section.objects.create(
-    #                         warehouse=store_warehouse,
-    #                         name=f"{store_warehouse.name} - Default Section"
-    #                     )
-
-    #                 # Get or create inventory for store, then update quantity
-    #                 store_inventory, created = Inventory.objects.get_or_create(
-    #                     warehouse=store_warehouse,
-    #                     tenant=store.tenant,
-    #                     section=section,
-    #                     product=product,
-    #                     lot=lot, 
-    #                     product_variant=variant,
-    #                     defaults={'quantity': 0}
-    #                 )
-    #                 store_inventory.quantity += allocate_qty
-    #                 store_inventory.save()
-
-    #                 TransferLog.objects.create(
-    #                     source_inventory=general_inventory,
-    #                     destination_inventory=store_inventory,
-    #                     product=product,
-    #                     product_variant=variant,
-    #                     lot=lot,
-    #                     quantity=allocate_qty,
-    #                     direction='to_store',
-    #                     tenant=store.tenant
-    #                 )
-    #                 total_allocated += allocate_qty
-    #                 quantity_needed -= allocate_qty
-
-    #                 results.append({
-    #                     "product_id": product.id,
-    #                     "variant_id": variant.id,
-    #                     "lot.id": lot.id,
-    #                     "quantity_allocated": total_allocated,
-    #                 })
-
-    #     return Response({
-    #         "status": "success",
-    #         "message": "Inventory allocation completed.",
-    #         "results": results
-    #     }, status=status.HTTP_200_OK)
-    @action(detail=True, methods=['post'], url_path='add-inventory', permission_classes=[IsAuthenticated])
-    def add_inventory(self, request, pk=None):
-        try:
-            store = Store.objects.get(pk=pk)
-        except Store.DoesNotExist:
-            return Response({"error": "Store not found."}, status=status.HTTP_404_NOT_FOUND)
-
-        store_warehouse = store.warehouses.first()
-        if not store_warehouse:
-            return Response({"error": "Store has no warehouse."}, status=status.HTTP_400_BAD_REQUEST)
-
-        serializer = AddInventorySerializer(
-            data=request.data,
-            many=True,
-            context={'request': request, 'store': store, 'warehouse': store_warehouse}
-        )
-        serializer.is_valid(raise_exception=True)
-        validated_data_list = serializer.validated_data
-
-        general_warehouse = Warehouse.objects.filter(
-            tenant=store.tenant, warehouse_type='general'
-        ).first()
-        if not general_warehouse:
-            return Response({"error": "General warehouse not found."}, status=status.HTTP_400_BAD_REQUEST)
-
-        # Get or create default section for the general warehouse
-        general_section = Section.objects.filter(warehouse=general_warehouse).first()
-        if not general_section:
-            general_section = Section.objects.create(
-                warehouse=general_warehouse,
-                name=f"{general_warehouse.name} - Default Section"
-            )
-
-        results = []
-
-        with transaction.atomic():
-            # PRE-CHECK: Ensure stock is sufficient for all requested items
-            for item in validated_data_list:
-                product = item['product']
-                variant = item['variant']
-                if not variant:
-                    return Response({
-                        "error": f"Product {product.id} has no variants."
-                    }, status=status.HTTP_400_BAD_REQUEST)
-
-                quantity_needed = item['quantity']
-
-                lots = ProductLot.objects.filter(
-                    variant=variant,
-                    quantity__gt=0
-                ).order_by('purchase_date', 'id')
-
-                total_available = sum(lot.quantity for lot in lots)
-                if total_available < quantity_needed:
-                    return Response({
-                        "error": f"Insufficient stock for product {product.id} (variant {variant.id}). "
-                                f"Requested {quantity_needed}, available {total_available}."
-                    }, status=status.HTTP_400_BAD_REQUEST)
-
-                # Check total quantity in general inventory across lots
-                total_general_qty = Inventory.objects.filter(
-                    warehouse=general_warehouse,
-                    tenant=store.tenant,
-                    section=general_section,
-                    product=product,
-                    product_variant=variant
-                ).aggregate(total=models.Sum('quantity'))['total'] or 0
-
-                if total_general_qty < quantity_needed:
-                    return Response({
-                        "error": f"Insufficient general warehouse inventory for product {product.id}."
-                    }, status=status.HTTP_400_BAD_REQUEST)
-
-            # ALLOCATION: Deduct from general, lots, and add to store inventory
-            for item in validated_data_list:
-                product = item['product']
-                variant = item['variant']
-                quantity_needed = item['quantity']
-                total_allocated = 0
-
-                lots = ProductLot.objects.filter(
-                    variant=variant,
-                    quantity__gt=0
-                ).order_by('purchase_date', 'id')
-
-                for lot in lots:
-                    if quantity_needed <= 0:
-                        break
-
-                    allocate_qty = min(lot.quantity, quantity_needed)
-
-                    # Fetch the corresponding general inventory for this lot
-                    general_inventory = Inventory.objects.filter(
-                        warehouse=general_warehouse,
-                        tenant=store.tenant,
-                        section=general_section,
-                        product=product,
-                        product_variant=variant,
-                        lot=lot
-                    ).select_for_update().first()
-
-                    if not general_inventory or general_inventory.quantity < allocate_qty:
-                        return Response({
-                            "error": f"Insufficient general warehouse inventory for product {product.id} in lot {lot.id}."
-                        }, status=status.HTTP_400_BAD_REQUEST)
-
-                    # Deduct from lot and general inventory
-                    lot.quantity -= allocate_qty
-                    lot.save()
-
-                    general_inventory.quantity -= allocate_qty
-                    general_inventory.save()
-
-                    # Always get or create (reuse) store inventory row for this lot
-                    section = store_warehouse.sections.first()
-                    if not section:
-                        section = Section.objects.create(
-                            warehouse=store_warehouse,
-                            name=f"{store_warehouse.name} - Default Section"
-                        )
-
-                    store_inventory, created = Inventory.objects.get_or_create(
-                        warehouse=store_warehouse,
-                        tenant=store.tenant,
-                        section=section,
-                        product=product,
-                        lot=lot,
-                        product_variant=variant,
-                        defaults={'quantity': 0}
-                    )
-                    store_inventory.quantity += allocate_qty
-                    store_inventory.save()
-
-                    # Create transfer log
-                    TransferLog.objects.create(
-                        source_inventory=general_inventory,
-                        destination_inventory=store_inventory,
-                        product=product,
-                        product_variant=variant,
-                        lot=lot,
-                        quantity=allocate_qty,
-                        direction='to_store',
-                        tenant=store.tenant
-                    )
-
-                    total_allocated += allocate_qty
-                    quantity_needed -= allocate_qty
-
-                    results.append({
-                        "product_id": product.id,
-                        "variant_id": variant.id,
-                        "lot_id": lot.id,
-                        "quantity_allocated": total_allocated,
-                    })
-
-        return Response({
-            "status": "success",
-            "message": "Inventory allocation completed.",
-            "results": results
-        }, status=status.HTTP_200_OK)
-
-    @action(detail=True, methods=['get'], url_path='inventory', permission_classes=[IsAuthenticated, IsStoreAssigned])
-    def store_inventory(self, request, pk=None):
-        try:
-            store = Store.objects.get(pk=pk)
-        except Store.DoesNotExist:
-            return Response({"error": "Store not found in this tenant."}, status=status.HTTP_404_NOT_FOUND)
-
-        self.check_object_permissions(request, store)
-        client = store.tenant
-
-        # Get all warehouses for the store
-        store_warehouses = store.warehouses.all()
-        if not store_warehouses.exists():
-            return Response({"error": "No warehouse found for this store."}, status=status.HTTP_404_NOT_FOUND)
-
-        # Filter inventory for store warehouses
-        store_inventory_qs = Inventory.objects.filter(
-            warehouse__in=store_warehouses
-            ).select_related(
-            'product', 'product_variant', 'product__category'
-        )
-
-        all_inventories = list(store_inventory_qs)
-
-        serializer = InventorySerializer(
-            store_inventory_qs,
-            many=True,
-            context={
-                'request': request,
-                'include_overview': True,
-                'first_item_id': all_inventories[0].id if all_inventories else None,
-                'all_inventories': all_inventories
-            }
-        )
-        warnings = InventorySerializer.get_variants_warnings(all_inventories)
-        serialized_data = serializer.data
-
-        # Group by product.id
-        grouped = defaultdict(list)
-        for item in serialized_data:
-            grouped[item['product']['id']].append(item)
-
-        # Build the grouped response just like main_inventory does
-        response_data = []
-        for product_id, items in grouped.items():
-            first = items[0]
-            
-            overview_data = first['overview'] if first['warehouse_type'] == 'store' else None
-            if overview_data:
-                overview_data = {"Store Inventory": overview_data.get("store_inventory")}
-
-            # Aggregate total quantity across all variants/lots
-            total_quantity = sum(int(i['total_quantity']) for i in items if i['total_quantity'])
-
-            # Aggregate stock status at product level
-            variant_statuses = [i['variant_stock_status'] for i in items]
-            if any(status == "In Stock" for status in variant_statuses):
-                product_stock_status = "In Stock"
-            elif any(status == "Low Stock" for status in variant_statuses):
-                product_stock_status = "Low Stock"
-            else:
-                product_stock_status = "Out of Stock"
-
-            grouped_item = {
-                "id": first['id'],
-                "product": first['product'],
-                "total_quantity": total_quantity,
-                "stock_status": product_stock_status,
-                "warehouse_type": first['warehouse_type'],
-                "variants": [{
-                    **i['variant'],
-                    'stock_status': i['variant_stock_status']
-                } for i in items],
-                "overview": overview_data,
-                "warnings": warnings,
-                "added_at": first['added_at'],
-                "updated_at": first['updated_at'],
-            }
-            response_data.append(grouped_item)
-
-
-        return Response(response_data, status=status.HTTP_200_OK)
-   
-    @action(detail=False, methods=['get'], url_path='main-inventory', permission_classes=[IsAuthenticated])
-    def main_inventory(self, request):
-        client = request.user.domain
-
-        warehouse = Warehouse.objects.filter(
-            tenant=client,
-            warehouse_type='general'
-        ).first()
-        if not warehouse:
-            return Response({"error": "General warehouse not found."}, status=status.HTTP_404_NOT_FOUND)
-
-        # Inventory for general warehouse
-        main_inventory_qs = Inventory.objects.filter(
-            warehouse=warehouse
-        ).select_related('product', 'product_variant', 'product__category')
-
-        # Exclude store items if provided
-        exclude_store_id = request.query_params.get('exclude_store_id')
-        if exclude_store_id:
-            store_warehouses = Warehouse.objects.filter(
-                store_id=exclude_store_id,
-                tenant=client
-            ).values_list('id', flat=True)
-            store_inventory_pairs = Inventory.objects.filter(
-                warehouse_id__in=store_warehouses
-            ).values_list('product_id', 'product_variant_id')
-            main_inventory_qs = main_inventory_qs.exclude(
-                product_id__in=[p for p, _ in store_inventory_pairs],
-                product_variant_id__in=[v for _, v in store_inventory_pairs]
-            )
-
-        # Fetch all products in this inventory
-        product_ids = main_inventory_qs.values_list('product_id', flat=True).distinct()
-        products = Product.objects.filter(id__in=product_ids).prefetch_related('variants__attributes', 'variants__lots')
-        all_inventories = list(main_inventory_qs)
-    
-        serializer = InventorySerializer(
-            main_inventory_qs,
-            many=True,
-            context={
-                'request': request,
-                'include_overview': True,  # Enable overview
-                'first_item_id': all_inventories[0].id if all_inventories else None,  # First item ID
-                'all_inventories': all_inventories  # Pass all for overview stats
-            }
-        )
-        warnings = InventorySerializer.get_variants_warnings(all_inventories)
-
-        serialized_data = serializer.data
-
-        # Group by product.id
-        grouped = defaultdict(list)
-        for item in serialized_data:
-            grouped[item['product']['id']].append(item)
-
-        # Build the grouped response
-        response_data = []
-        for product_id, items in grouped.items():
-            first = items[0]
-            # Group variants by variant.id to prevent duplicates
-            variant_map = {}
-            for i in items:
-                variant_id = i['variant']['id']
-                if variant_id not in variant_map:
-                    variant_map[variant_id] = {
-                        **i['variant'],
-                        'stock_status': i['variant_stock_status'],
-                        'lots': i['variant']['lots']  # Start with initial lots
-                    }
-                else:
-                    # Merge lots (avoid duplication by lot.id)
-                    existing_lots = {lot['id'] for lot in variant_map[variant_id]['lots']}
-                    new_lots = [lot for lot in i['variant']['lots'] if lot['id'] not in existing_lots]
-                    variant_map[variant_id]['lots'].extend(new_lots)
-
-            variants = list(variant_map.values())
-
-            # Only include overview if warehouse_type is 'general', else None
-            overview_data = first['overview'] if first['warehouse_type'] == 'general' else None
-            if overview_data:
-                # Remove store_inventory key, only keep general_inventory
-                overview_data = {
-                    "general_inventory": overview_data.get("general_inventory")
-                }
-
-            grouped_item = {
-                "id": first['id'],
-                "product": first['product'],
-                "total_quantity": first['total_quantity'],  # already computed correctly
-                "stock_status": first['stock_status'],
-                "warehouse_type": first['warehouse_type'],
-                "variants": variants,  # <-- Use the deduplicated variants
-                "overview": overview_data,
-                "warnings": warnings,
-                "added_at": first['added_at'],
-                "updated_at": first['updated_at'],
-            }
-            response_data.append(grouped_item)
-
-        return Response(response_data, status=status.HTTP_200_OK)
-
-    @action(detail=True, methods=['post'], url_path='return-inventory', permission_classes=[IsAuthenticated])
-    def return_inventory(self, request, pk=None):
-        try:
-            store = Store.objects.get(pk=pk)
-        except Store.DoesNotExist:
-            return Response({"error": "Store not found."}, status=status.HTTP_404_NOT_FOUND)
-
-        store_warehouse = store.warehouses.first()
-        if not store_warehouse:
-            return Response({"error": "Store has no warehouse."}, status=status.HTTP_400_BAD_REQUEST)
-
-        items_to_return = request.data
-        if not isinstance(items_to_return, list):
-            return Response({"error": "Invalid input format, expected a list."}, status=status.HTTP_400_BAD_REQUEST)
-
-        results = []
-        with transaction.atomic():
-            for item in items_to_return:
-                product_id = item.get('product_id')
-                variant_id = item.get('variant_id')
-                lot_id = item.get('lot_id')
-                quantity_to_return = item.get('quantity')
-
-                if not product_id or not variant_id or not lot_id or not isinstance(quantity_to_return, int) or quantity_to_return <= 0:
-                    return Response({"error": "Invalid product, variant, lot, or quantity."}, status=status.HTTP_400_BAD_REQUEST)
-
-                # Get store inventories (lot-specific)
-                store_inventories = Inventory.objects.filter(
-                    warehouse=store_warehouse,
-                    tenant=store.tenant,
-                    product_id=product_id,
-                    product_variant_id=variant_id,
-                    lot_id=lot_id
-                ).select_for_update().order_by('added_at')
-
-                total_store_qty = store_inventories.aggregate(total=models.Sum('quantity'))['total'] or 0
-                if total_store_qty < quantity_to_return:
-                    return Response({
-                        "error": f"Insufficient store inventory for product {product_id} variant {variant_id} lot {lot_id}. "
-                                f"Requested: {quantity_to_return}, Available: {total_store_qty}"
-                    }, status=status.HTTP_400_BAD_REQUEST)
-
-                qty_left = quantity_to_return
-
-                for store_inventory in store_inventories:
-                    if qty_left <= 0:
-                        break
-
-                    # Find transfer logs for this store inventory (oldest first)
-                    transfer_logs = TransferLog.objects.filter(
-                        destination_inventory=store_inventory,
-                        direction='to_store',
-                        product_id=product_id,
-                        product_variant_id=variant_id,
-                        lot_id=lot_id
-                    ).select_for_update().order_by('transferred_at')
-
-                    for log in transfer_logs:
-                        if qty_left <= 0:
-                            break
-                        restore_qty = min(log.quantity, qty_left)
-
-                        # Deduct from store inventory
-                        store_inventory.quantity -= restore_qty
-                        store_inventory.save()
-
-                        # Restore to the exact source inventory (general warehouse)
-                        general_inventory = log.source_inventory
-                        general_inventory.quantity += restore_qty
-                        general_inventory.save()
-
-                        # ALSO update the ProductLot quantity
-                        product_lot = general_inventory.lot
-                        product_lot.quantity += restore_qty
-                        product_lot.save()
-
-                        # Create reverse log
-                        TransferLog.objects.create(
-                            source_inventory=store_inventory,
-                            destination_inventory=general_inventory,
-                            product_id=product_id,
-                            product_variant_id=variant_id,
-                            lot_id=lot_id,
-                            quantity=restore_qty,
-                            direction='to_general',
-                            tenant=store.tenant
-                        )
-
-                        # Reduce original log's quantity (if partial return)
-                        log.quantity -= restore_qty
-                        if log.quantity <= 0:
-                            log.delete()
-                        else:
-                            log.save()
-
-                        qty_left -= restore_qty
-
-                    results.append({
-                        "product_id": product_id,
-                        "variant_id": variant_id,
-                        "lot_id": lot_id,
-                        "quantity_returned": quantity_to_return - qty_left
-                    })
-
-        return Response({
-            "status": "success",
-            "message": "Inventory returned to general warehouse successfully.",
-            "results": results
-        }, status=status.HTTP_200_OK)
-
 
 #Transfer Viewset (considering Lot for FIFO during transfer)
 class TransferViewSet(viewsets.ViewSet):
@@ -719,45 +126,144 @@ class TransferViewSet(viewsets.ViewSet):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
     @action(detail=True, methods=['post'], url_path='execute')
+    @transaction.atomic
     def execute_transfer(self, request, pk=None):
+
         try:
-            # Retrieve the Transfer object using the provided primary key
+
             transfer = self.get_object()
 
-            # Check if the transfer status is 'pending' before executing
             if transfer.status != 'pending':
-                return Response({"status": "Transfer is not pending, cannot execute."}, status=status.HTTP_400_BAD_REQUEST)
+                return Response(
+                    {"status": "Transfer is not pending."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
 
-            # Deduct from the 'from' warehouse inventory (FIFO approach)
-            from_inventory = Inventory.objects.filter(warehouse=transfer.source_warehouse, product=transfer.product).order_by('lot__purchase_date')
+            from_inventory = (
+                Inventory.objects.filter(
+                    warehouse=transfer.source_warehouse,
+                    product=transfer.product
+                )
+                .select_related(
+                    'lot',
+                    'product_variant'
+                )
+                .order_by('lot__purchase_date')
+            )
 
             quantity_left = transfer.quantity
+
             for inventory in from_inventory:
+
                 if quantity_left <= 0:
                     break
-                # Deduct from this lot
+
                 if inventory.quantity <= quantity_left:
-                    quantity_left -= inventory.quantity
-                    inventory.deduct_quantity(inventory.quantity)
+
+                    deducted_qty = inventory.quantity
+
                 else:
-                    inventory.deduct_quantity(quantity_left)
-                    quantity_left = 0
 
-            # If there is still quantity left to be transferred, update the 'to' warehouse inventory
-            to_inventory, created = Inventory.objects.get_or_create(warehouse=transfer.destination_warehouse, product=transfer.product, lot=inventory.lot)
-            to_inventory.quantity += transfer.quantity
-            to_inventory.save()
+                    deducted_qty = quantity_left
 
-            # Update the transfer status to 'completed'
+                # -----------------------------------
+                # DEDUCT SOURCE INVENTORY
+                # -----------------------------------
+
+                inventory.deduct_quantity(
+                    deducted_qty
+                )
+
+                quantity_left -= deducted_qty
+
+                # -----------------------------------
+                # CREATE/UPDATE DESTINATION INVENTORY
+                # -----------------------------------
+
+                destination_inventory, created = (
+                    Inventory.objects.get_or_create(
+                        tenant=transfer.source_warehouse.tenant,
+                        warehouse=transfer.destination_warehouse,
+                        section=transfer.destination_warehouse.sections.first(),
+                        product=transfer.product,
+                        product_variant=inventory.product_variant,
+                        lot=inventory.lot,
+                        defaults={
+                            'quantity': deducted_qty
+                        }
+                    )
+                )
+
+                if not created:
+
+                    destination_inventory.quantity += deducted_qty
+
+                    destination_inventory.save(
+                        update_fields=[
+                            'quantity',
+                            'updated_at'
+                        ]
+                    )
+
+                # -----------------------------------
+                # TRANSFER OUT MOVEMENT
+                # -----------------------------------
+
+                InventoryMovement.objects.create(
+                    tenant=transfer.source_warehouse.tenant,
+                    warehouse=transfer.source_warehouse,
+                    product=transfer.product,
+                    product_variant=inventory.product_variant,
+                    lot=inventory.lot,
+                    transfer=transfer,
+                    movement_type='TRANSFER_OUT',
+                    quantity=deducted_qty,
+                    unit_cost=inventory.lot.purchase_price,
+                    total_cost=(
+                        deducted_qty
+                        * inventory.lot.purchase_price
+                    ),
+                    reference=f'TRF-{transfer.id}',
+                    remarks='Transfer Out'
+                )
+
+                # -----------------------------------
+                # TRANSFER IN MOVEMENT
+                # -----------------------------------
+
+                InventoryMovement.objects.create(
+                    tenant=transfer.destination_warehouse.tenant,
+                    warehouse=transfer.destination_warehouse,
+                    product=transfer.product,
+                    product_variant=inventory.product_variant,
+                    lot=inventory.lot,
+                    transfer=transfer,
+                    movement_type='TRANSFER_IN',
+                    quantity=deducted_qty,
+                    unit_cost=inventory.lot.purchase_price,
+                    total_cost=(
+                        deducted_qty
+                        * inventory.lot.purchase_price
+                    ),
+                    reference=f'TRF-{transfer.id}',
+                    remarks='Transfer In'
+                )
+
             transfer.status = 'completed'
+            transfer.confirmed_by = request.user
             transfer.save()
 
-            # Return success response
-            return Response({"status": "Transfer executed successfully and marked as completed."})
+            return Response({
+                "status": "Transfer executed successfully."
+            })
 
         except Exception as e:
-            # Handle any errors that may occur during the transfer process
-            return Response({"status": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+            return Response(
+                {"status": str(e)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
 
 class StockRequestViewSet(viewsets.ViewSet):
     
@@ -897,4 +403,77 @@ class StockRequestViewSet(viewsets.ViewSet):
             "status": "Stock request confirmed and transfer created.",
             "transfer": TransferSerializer(transfer).data
         })
+class SupplierViewSet(viewsets.ModelViewSet):
 
+    serializer_class = SupplierSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return Supplier.objects.filter(
+            tenant=self.request.tenant
+        )
+
+    def perform_create(self, serializer):
+        serializer.save(
+            tenant=self.request.tenant
+        )
+
+
+class PurchaseViewSet(viewsets.ModelViewSet):
+
+    serializer_class = PurchaseSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return (
+            Purchase.objects
+            .filter(tenant=self.request.tenant)
+            .prefetch_related("items")
+            .select_related("supplier", "store_name")
+        )
+
+    def perform_create(self, serializer):
+        serializer.save(
+            tenant=self.request.tenant
+        )
+
+    @action(detail=True, methods=["post"], url_path="post")
+    def post_purchase(self, request, pk=None):
+        purchase = self.get_object()
+
+        try:
+            PurchasePostingService.post_purchase(
+                purchase.id,
+                user=request.user
+            )
+
+            return Response(
+                {"message": "Purchase posted successfully."},
+                status=status.HTTP_200_OK
+            )
+
+        except Exception as e:
+            return Response(
+                {"error": str(e)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+class InventoryMovementViewSet(viewsets.ReadOnlyModelViewSet):
+
+    serializer_class = InventoryMovementSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        queryset = (
+            InventoryMovement.objects
+            .filter(tenant=self.request.tenant)
+            .select_related("product", "warehouse", "lot")
+            .order_by("-created_at")
+        )
+
+        movement_type = self.request.query_params.get("movement_type")
+
+        if movement_type:
+            queryset = queryset.filter(movement_type=movement_type)
+
+        return queryset

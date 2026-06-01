@@ -42,7 +42,6 @@ source /home/ed/repos/PEKIN_LEDGER/pekin_ledger-venv/bin/activate
   "last_name": "Smith",
 
   "phone1": "+1234567890",
-  "phone2": "+0987654321",
   "photo": null,
   
   "address": "1234 Subaccount St, Tenant City",
@@ -194,4 +193,67 @@ DJANGO_SETTINGS_MODULE
 ledger_api.settings
 Plain text
 PYTHONPATH
-/var/app/venv/staging-LQM1lest/bin
+/var/app/venv/staging-LQM1lest/bin\
+
+
+{
+  "product_name": "Barca Home Jersey",
+  "category": 1,
+  "unit": "pcs",
+  "threshold_value": 10,
+  "currency": "USD",
+  "variants": [
+    {
+      "attributes": [
+          { "name": "Size", "value": "M" },
+          { "name": "Texture", "value": "cutton" },
+          { "name": "Year", "value": "2025" }
+      ],
+      "lots": [
+        {
+          "quantity": 100,
+          "purchase_price": 5.00,
+          "retail_selling_price": 10.00,
+          "wholesale_selling_price": 8.00,
+          "expired_date": "2026-12-31"
+        }
+      ]
+    },
+    {
+      "attributes": [
+        { "name": "Size", "value": "L" }
+      ],
+      "lots": [
+        {
+          "quantity": 100,
+          "purchase_price": 6.00,
+          "retail_selling_price": 11.00,
+          "wholesale_selling_price": 9.00,
+          "expired_date": "2026-12-31"
+        }
+      ]
+    }
+  ]
+}
+
+{
+  "product_name": "Coffee Beans",
+  "category": 2,
+  "unit": "kg",
+  "threshold_value": 25,
+  "currency": "LRD",
+  "variants": [
+    {
+      "attributes": [],  // no attributes
+      "lots": [
+        {
+          "quantity": 150,
+          "purchase_price": 12.00,
+          "retail_selling_price": 30.00,
+          "wholesale_selling_price": 25.00,
+          "expired_date": "2026-06-30"
+        }
+      ]
+    }
+  ]
+}

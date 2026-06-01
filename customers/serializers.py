@@ -15,8 +15,8 @@ class UserSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ['email', 'username', 'password', 'first_name', 'middle_name', 'last_name', 'phone1', 'phone2', 
-                  'photo', 'address', 'city', 'country', 'date_of_birth', 'nationality', 'position', 'business_name']
+        fields = ['email', 'username', 'password', 'full_name', 'phone1', 'phone2', 
+                  'photo', 'address', 'city', 'country', 'position', 'business_name']
     
     password = serializers.CharField(write_only=True)
 
@@ -42,8 +42,7 @@ class StaffSerializer(serializers.ModelSerializer):
         model = User
         fields = [
             "username",
-            "first_name",
-            "last_name",
+            "full_name",
             "address",
             "city",
             "phone1",

@@ -2,7 +2,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework import viewsets, status, permissions
 from .models import Domain, User
-from stores.models import Employee
+from payroll.models import Employee
 from finance.models import ExchangeRate
 from .serializers import UserSerializer
 from django.contrib.auth import authenticate

@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from customers.models import Client
 from .models import Sale, SaleDetail, ExchangeRate, Payment, Refund, SaleCancellationLog
+from inventory.models import Inventory
 
 class SaleDetailSerializer(serializers.ModelSerializer):
     lot_sku = serializers.CharField(source='lot.sku', read_only=True)
@@ -11,8 +12,24 @@ class SaleDetailSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = SaleDetail
-        fields = ['product_name', 'lot_sku', 'quantity_sold', 'price_at_sale', 'product_currency', 'total', 'variant_attributes']
-
+        fields = [
+            'id',
+            'sale',
+            'product',
+            'product_variant',
+            'lot',
+            'product_name',
+            'lot_sku',
+            'quantity_sold',
+            'price_at_sale',
+            'product_currency',
+            'subtotal',
+            'tax_class',
+            'tax_rate_snapshot',
+            'tax_amount',
+            'total',
+            'variant_attributes'
+        ]
 
     def get_variant_attributes(self, obj):
         if obj.product_variant:
@@ -23,7 +40,7 @@ class SaleDetailSerializer(serializers.ModelSerializer):
         return []
     
     def get_total(self, obj):
-        return (obj.quantity_sold or 0) * (obj.price_at_sale or 0)
+        return obj.total
 
 class PaymentSerializer(serializers.ModelSerializer):
     class Meta:
@@ -38,7 +55,7 @@ class PaymentSerializer(serializers.ModelSerializer):
             return data
 
 class SaleSerializer(serializers.ModelSerializer):
-    sale_details = SaleDetailSerializer(many=True, read_only=True)
+    sale_details = SaleDetailSerializer(many=True)
     store_name = serializers.CharField(source='store.store_name', read_only=True)
     payments = PaymentSerializer(many=True, read_only=True) 
     sale_date = serializers.SerializerMethodField()
@@ -55,9 +72,28 @@ class SaleSerializer(serializers.ModelSerializer):
         }
     
     def create(self, validated_data):
-        # Example: get tenant from request user if it's a tenant-bound system
-        validated_data['tenant'] = self.context['request'].tenant
-        return super().create(validated_data)
+
+        sale_details_data = validated_data.pop(
+            'sale_details',
+            []
+        )
+
+        validated_data['tenant'] = (
+            self.context['request'].tenant
+        )
+
+        sale = Sale.objects.create(
+            **validated_data
+        )
+
+        for item in sale_details_data:
+
+            SaleDetail.objects.create(
+                sale=sale,
+                **item
+            )
+
+        return sale
 
     def get_sale_date(self, obj):
         # Format: July 23, 2025 @ 14:26:22
@@ -97,4 +133,3 @@ class SaleCancellationLogSerializer(serializers.ModelSerializer):
         model = SaleCancellationLog
         fields = ['id', 'cancelled_by', 'cancelled_by_name', 'reason', 'details', 'cancelled_at']
         read_only_fields = ['id', 'cancelled_by_name', 'cancelled_at']
-

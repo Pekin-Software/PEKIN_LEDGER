@@ -5,7 +5,7 @@ from customers.serializers import UserSerializer, StaffSerializer
 from rest_framework.decorators import action
 from django_tenants.utils import schema_context
 from django.db.models import Q
-from stores.models import Employee
+from payroll.models import Employee
 class SubaccountViewSet(viewsets.ModelViewSet):
     """
     Handles user listing and subaccount creation in the tenant schema.

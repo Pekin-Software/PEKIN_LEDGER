@@ -1,6 +1,6 @@
 Adding and returning inventory to and from store 
 1. testing022.client1.localhost:8000/api/inventory/1/add-inventory/
-2. testing022.client1.localhost:8000/api/inventory/1/remove-inventory/
+2. testing022.client1.localhost:8000/api/inventory/1/return-inventory/
 [
   {
     "product_id": 40,
@@ -76,10 +76,13 @@ testing022.client1.localhost:8000/api/products/42/restock-product/
         "quantity": 60, 
         "purchase_price": 10.00, 
         "retail_selling_price": 80.00
-  
     }
   ]
-}[Unit]
+}
+
+8. Sales Report for store - http://testing022.client1.localhost:8000/api/sales/listsales/?store_id=1
+9. 
+[Unit]
 Description=Gunicorn instance to serve PEKIN_LEDGER
 After=network.target
 

@@ -5,7 +5,7 @@ from rest_framework.permissions import IsAuthenticated
 from django.db import transaction, connection
 from customers.models import Client, User
 from customers.serializers import StaffSerializer
-from .models import Store, Employee
+from payroll.models import Store, Employee
 from .serializers import StoreSerializer
 from rest_framework import permissions
 

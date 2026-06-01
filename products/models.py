@@ -6,6 +6,7 @@ import uuid
 import random
 import barcode
 from barcode.writer import ImageWriter
+from taxation.models import TaxClass
 from io import BytesIO
 from django.core.files.base import ContentFile
    
@@ -18,12 +19,15 @@ class Category(models.Model):
 
 class Product(models.Model):
     tenant = models.ForeignKey(Client, on_delete=models.CASCADE, related_name="products")
-    product_name = models.CharField(max_length=255)
     slug = models.SlugField(unique=True, blank=True, max_length=300)
+    
+    product_name = models.CharField(max_length=255)
     category = models.ForeignKey(Category, on_delete=models.CASCADE, related_name='products')
+    
     unit = models.CharField(max_length=50, null=True, blank=True)
     threshold_value = models.PositiveIntegerField(default=0)
     product_image = models.ImageField(upload_to='product_images/', null=True, blank=True)
+    
     created_at = models.DateTimeField(default=timezone.now)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -32,6 +36,19 @@ class Product(models.Model):
         ('LRD', 'Liberian Dollars'),
     ]
     currency = models.CharField(max_length=3, choices=CURRENCY_CHOICES, default='LRD')
+
+    average_cost = models.DecimalField(
+        max_digits=18,
+        decimal_places=2,
+        default=0
+    )
+    tax_class = models.ForeignKey(
+        TaxClass,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="products"
+    )
 
     class Meta:
         unique_together = ('tenant', 'product_name', 'category')
@@ -55,7 +72,7 @@ class ProductVariant(models.Model):
     sku = models.CharField(max_length=50, unique=True, blank=True)
     barcode = models.CharField(max_length=50, unique=True, blank=True)
     barcode_image = models.ImageField(upload_to='barcodes/', null=True, blank=True)
-
+    variant_image = models.ImageField(upload_to='variant_images/', null=True, blank=True)
     def __str__(self):
         attrs = ", ".join([val.value for val in self.attributes.all()])
         return f"{self.product.product_name} ({attrs})"
@@ -104,6 +121,10 @@ class ProductVariant(models.Model):
         if not self.barcode_image:
             self.generate_barcode_image()
             super().save(update_fields=['barcode_image'])
+
+        if not self.variant_image and self.product.product_image:
+            self.variant_image = self.product.product_image
+            super().save(update_fields=['variant_image'])
     @property
     def total_quantity(self):
         return self.lots.aggregate(total=models.Sum('quantity'))['total'] or 0
@@ -118,13 +139,20 @@ class VariantAttribute(models.Model):
 
     def __str__(self):
         return f"{self.name}: {self.value}"
-    
+ 
 class ProductLot(models.Model):
     variant = models.ForeignKey(ProductVariant, related_name="lots", on_delete=models.CASCADE)
     lot_number = models.CharField(max_length=50, unique=True, blank=True)
+    warehouse = models.ForeignKey('inventory.Warehouse',on_delete=models.CASCADE, related_name="lots")
+    purchase_item = models.ForeignKey(
+        "inventory.PurchaseItem",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="lots"
+    )
     quantity = models.PositiveIntegerField()
     expired_date = models.DateField(null=True, blank=True)
-
     purchase_price = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
     wholesale_quantity = models.PositiveIntegerField(default=0)
     wholesale_selling_price = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)

@@ -7,9 +7,13 @@ from django.conf import settings
 urlpatterns = [
     path('', include("customers.urls")), 
     path('', include("records.urls")),
+    path('', include("accounting.urls")),
     # path('', include("warehouses.urls")),
     path('', include("stores.urls")),
     path('', include("inventory.urls")),
     path('', include("products.urls")),
     path('', include("sales.urls")),
+    path('', include("reconciliation.urls")),
+    path('', include("compliance.urls")),
+
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

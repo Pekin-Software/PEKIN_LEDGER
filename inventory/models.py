@@ -2,6 +2,7 @@ from django.db import models
 from customers.models import Client
 from products.models import Product, ProductLot, ProductVariant
 from stores.models import Store
+from decimal import Decimal
 import uuid
 from django.utils import timezone
 from rest_framework.exceptions import ValidationError
@@ -76,31 +77,28 @@ class Inventory(models.Model):
             return sum(
                 lot.quantity
                 for variant in self.product.variants.all()
-                for lot in variant.lots.all()
+                for lot in variant.lots.filter(warehouse=self.warehouse)
             )
         else:
             return self.quantity
-
+    
     def compute_stock_status(self):
         if not self.product_variant:
             return "Out of Stock"
 
-        lots = self.product_variant.lots.all()
+        # Only consider lots in this inventory's warehouse
+        lots = self.product_variant.lots.filter(warehouse=self.warehouse)
         now = timezone.now().date()
 
-        # Separate non-expired lots
         non_expired_lots = [lot for lot in lots if not lot.expired_date or lot.expired_date >= now]
         total_quantity = sum(lot.quantity for lot in non_expired_lots)
         threshold = self.product.threshold_value or 0
 
-        # If no non-expired lots → Out of Stock (not "Expired" at variant level)
         if total_quantity <= 0:
             return "Out of Stock"
         elif total_quantity <= threshold:
             return "Low Stock"
         return "In Stock"
-
-
 
     def clean(self):
         if self.quantity < 0:
@@ -111,7 +109,6 @@ class Inventory(models.Model):
             raise ValidationError("Inventory product tenant mismatch.")
         if self.section.warehouse != self.warehouse:
             raise ValidationError("Inventory section does not belong to the specified warehouse.")
-        
 
     def deduct_quantity(self, amount):
         """Reduce the quantity by `amount`, raising an error if not enough stock."""
@@ -140,39 +137,91 @@ class Inventory(models.Model):
                 name=f"{store_warehouse.name} - Default Section"
             )
         
-        store_inventory, created = Inventory.objects.get_or_create(
+    #Create a new, independent lot for the store
+        store_lot = ProductLot.objects.create(
+            variant=self.product_variant,
+            lot_number=None,  # will auto-generate a new unique lot number
+            warehouse=store_warehouse,
+            quantity=quantity,
+            purchase_date=self.lot.purchase_date,
+            purchase_price=self.lot.purchase_price,
+            wholesale_quantity=self.lot.wholesale_quantity,
+            wholesale_selling_price=self.lot.wholesale_selling_price,
+            retail_selling_price=self.lot.retail_selling_price,
+            expired_date=self.lot.expired_date,
+        )
+
+        # Create inventory in the store linked to the new lot
+        store_inventory = Inventory.objects.create(
             tenant=self.tenant,
             warehouse=store_warehouse,
             section=section,
             product=self.product,
-            lot=self.lot,
-            defaults={'quantity': 0}
+            product_variant=self.product_variant,
+            lot=store_lot,
+            quantity=quantity
         )
-        store_inventory.add_quantity(quantity)
         return store_inventory
-
-    def return_from_store(self, store_warehouse, quantity):
-        # Find the inventory in the store warehouse
-        try:
-            store_inventory = Inventory.objects.get(
-                tenant=self.tenant,
-                warehouse=store_warehouse,
-                product=self.product,
-                lot=self.lot
-            )
-        except Inventory.DoesNotExist:
-            raise ValueError("No inventory found in store warehouse to return")
-
-        if quantity > store_inventory.quantity:
-            raise ValueError("Insufficient stock in store to return")
-
-        # Deduct quantity from store warehouse
-        store_inventory.deduct_quantity(quantity)
-
-        # Add quantity back to this inventory (general/admin warehouse)
-        self.add_quantity(quantity)
-        return store_inventory
+    
+    def return_from_store(self, quantity):
+        """
+        Return stock from a store warehouse back to the original general warehouse lot.
+        Deducts from store inventory and store lot, restores to original general warehouse lot and inventory.
+        """
+        if quantity <= 0:
+            raise ValueError("Quantity must be positive.")
         
+        if quantity > self.quantity:
+            raise ValueError("Insufficient stock in store inventory to return.")
+
+        # Find the transfer log pointing to this store inventory (oldest first)
+        transfer_log = TransferLog.objects.filter(
+            destination_inventory=self,
+            direction='to_store'
+        ).select_for_update().order_by('transferred_at').first()
+
+        if not transfer_log:
+            raise ValueError("No transfer log found for this store inventory; cannot return.")
+
+        general_inventory = transfer_log.source_inventory
+        general_lot = general_inventory.lot
+
+        # --- Deduct from store inventory ---
+        self.deduct_quantity(quantity)
+
+        # --- Deduct from store lot ---
+        if self.lot:
+            self.lot.quantity -= quantity
+            self.lot.save(update_fields=['quantity'])
+
+        # --- Add back to general inventory and general lot ---
+        general_inventory.add_quantity(quantity)
+        if general_lot:
+            general_lot.quantity += quantity
+            general_lot.save(update_fields=['quantity'])
+
+        # --- Update transfer log ---
+        transfer_log.quantity -= quantity
+        if transfer_log.quantity <= 0:
+            transfer_log.delete()
+        else:
+            transfer_log.save(update_fields=['quantity'])
+
+        # --- Create reverse transfer log ---
+        TransferLog.objects.create(
+            source_inventory=self,
+            destination_inventory=general_inventory,
+            product=self.product,
+            product_variant=self.product_variant,
+            lot=general_lot,
+            quantity=quantity,
+            direction='to_general',
+            tenant=self.tenant
+        )
+
+        return self
+
+    
     def save(self, *args, **kwargs):
         self.clean()
         super().save(*args, **kwargs)
@@ -190,7 +239,10 @@ class Transfer(models.Model):
     source_warehouse = models.ForeignKey(Warehouse, related_name="outgoing_transfers", on_delete=models.CASCADE)
     destination_warehouse = models.ForeignKey(Warehouse, related_name="incoming_transfers", on_delete=models.CASCADE)
     product = models.ForeignKey(Product, related_name="transfers", on_delete=models.CASCADE)
-    quantity = models.IntegerField()
+    quantity = models.DecimalField(
+        max_digits=18,
+        decimal_places=2
+    )
     transfer_date = models.DateTimeField(auto_now_add=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_PENDING)   
     confirmed_by = models.ForeignKey('customers.User', related_name='confirmed_transfers', null=True, blank=True, on_delete=models.SET_NULL)
@@ -204,7 +256,10 @@ class StockRequest(models.Model):
     warehouse_from = models.ForeignKey(Warehouse, on_delete=models.CASCADE, related_name="stock_requests_from")  # General warehouse (source)
     warehouse_to = models.ForeignKey(Warehouse, on_delete=models.CASCADE, related_name="stock_requests_to")  # Store warehouse (destination)
     product = models.ForeignKey(Product, related_name='stock_requests', on_delete=models.CASCADE)
-    quantity_requested = models.IntegerField()
+    quantity = models.DecimalField(
+        max_digits=18,
+        decimal_places=2
+    )
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_PENDING)
     request_date = models.DateTimeField(auto_now_add=True)
 
@@ -244,3 +299,323 @@ class TransferLog(models.Model):
     )
     tenant = models.ForeignKey(Client, on_delete=models.CASCADE, related_name="transferlogs")
 
+class Supplier(models.Model):
+
+    tenant = models.ForeignKey(
+        Client,
+        on_delete=models.CASCADE,
+        related_name='suppliers'
+    )
+
+    name = models.CharField(
+        max_length=255
+    )
+
+    tin = models.CharField(
+        max_length=100,
+        blank=True,
+        null=True
+    )
+
+    phone = models.CharField(
+        max_length=100,
+        blank=True,
+        null=True
+    )
+
+    email = models.EmailField(
+        blank=True,
+        null=True
+    )
+
+    address = models.TextField(
+        blank=True,
+        null=True
+    )
+
+    vat_registered = models.BooleanField(
+        default=True
+    )
+
+    is_active = models.BooleanField(
+        default=True
+    )
+
+    created_at = models.DateTimeField(
+        auto_now_add=True
+    )
+    updated_at = models.DateTimeField(
+        auto_now=True
+    )
+
+    def __str__(self):
+        return self.name
+    
+class Purchase(models.Model):
+
+    STATUS_CHOICES = (
+        ('DRAFT', 'Draft'),
+        ('POSTED', 'Posted'),
+        ('CANCELLED', 'Cancelled'),
+    )
+
+    tenant = models.ForeignKey(
+        Client,
+        on_delete=models.CASCADE
+    )
+
+    store_name = models.ForeignKey(
+        Store,
+        on_delete=models.CASCADE
+    )
+
+    supplier = models.ForeignKey(
+        Supplier,
+        on_delete=models.PROTECT,
+        related_name='purchases'
+    )
+
+    invoice_number = models.CharField(
+        max_length=100
+    )
+
+    invoice_date = models.DateField()
+
+    subtotal = models.DecimalField(
+        max_digits=18,
+        decimal_places=2,
+        default=0
+    )
+
+    vat_total = models.DecimalField(
+        max_digits=18,
+        decimal_places=2,
+        default=0
+    )
+
+    grand_total = models.DecimalField(
+        max_digits=18,
+        decimal_places=2,
+        default=0
+    )
+
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default='DRAFT'
+    )
+
+    posted_at = models.DateTimeField(
+        null=True,
+        blank=True
+    )
+
+    is_posted = models.BooleanField(
+        default=False
+    )
+
+    created_at = models.DateTimeField(
+        auto_now_add=True
+    )
+
+    journal_entry_id = models.UUIDField(
+        null=True,
+        blank=True
+    )
+    
+
+    class Meta:
+        ordering = ['-created_at']
+
+        unique_together = (
+            'tenant',
+            'invoice_number'
+        )
+
+    def __str__(self):
+        return self.invoice_number
+    
+class PurchaseItem(models.Model):
+
+    purchase = models.ForeignKey(
+        Purchase,
+        on_delete=models.CASCADE,
+        related_name='items'
+    )
+
+    product = models.ForeignKey(
+        Product,
+        on_delete=models.PROTECT
+    )
+
+    product_variant = models.ForeignKey(
+        ProductVariant,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True
+    )
+
+    quantity = models.DecimalField(
+        max_digits=18,
+        decimal_places=2
+    )
+
+    unit_cost = models.DecimalField(
+        max_digits=18,
+        decimal_places=2
+    )
+
+    subtotal = models.DecimalField(
+        max_digits=18,
+        decimal_places=2,
+        default=0
+    )
+
+    vat_rate = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        default=0
+    )
+
+    vat_amount = models.DecimalField(
+        max_digits=18,
+        decimal_places=2,
+        default=0
+    )
+
+    total = models.DecimalField(
+        max_digits=18,
+        decimal_places=2,
+        default=0
+    )
+
+    def save(self, *args, **kwargs):
+
+        self.subtotal = (
+            Decimal(self.quantity)
+            * Decimal(self.unit_cost)
+        )
+
+        self.vat_amount = (
+            self.subtotal
+            * Decimal(self.vat_rate)
+        ) / Decimal('100')
+
+        self.total = (
+            self.subtotal
+            + self.vat_amount
+        )
+
+        super().save(*args, **kwargs)
+
+class InventoryMovement(models.Model):
+
+    MOVEMENT_TYPES = (
+        ('PURCHASE', 'Purchase'),
+        ('SALE', 'Sale'),
+        ('TRANSFER_IN', 'Transfer In'),
+        ('TRANSFER_OUT', 'Transfer Out'),
+        ('ADJUSTMENT', 'Adjustment'),
+        ('RETURN', 'Return'),
+    )
+
+    tenant = models.ForeignKey(
+        Client,
+        on_delete=models.CASCADE
+    )
+
+    warehouse = models.ForeignKey(
+        Warehouse,
+        on_delete=models.CASCADE
+    )
+
+    product = models.ForeignKey(
+        Product,
+        on_delete=models.CASCADE,
+        related_name='inventory_movements'
+    )
+
+    product_variant = models.ForeignKey(
+        ProductVariant,
+        on_delete=models.CASCADE,
+        related_name='inventory_movements',
+        null=True,
+        blank=True
+    )
+
+    lot = models.ForeignKey(
+        ProductLot,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True
+    )
+
+    purchase = models.ForeignKey(
+        'Purchase',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='inventory_movements'
+    )
+
+    sale = models.ForeignKey(
+        'sales.Sale',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='inventory_movements'
+    )
+
+    transfer = models.ForeignKey(
+        'Transfer',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='inventory_movements'
+    )
+
+    adjustment_reference = models.CharField(
+        max_length=255,
+        null=True,
+        blank=True
+    )
+
+    movement_type = models.CharField(
+        max_length=30,
+        choices=MOVEMENT_TYPES
+    )
+
+    quantity = models.DecimalField(
+        max_digits=18,
+        decimal_places=2
+    )
+
+    unit_cost = models.DecimalField(
+        max_digits=18,
+        decimal_places=2,
+        default=0
+    )
+
+    total_cost = models.DecimalField(
+        max_digits=18,
+        decimal_places=2,
+        default=0
+    )
+
+    reference = models.CharField(
+        max_length=255
+    )
+
+    remarks = models.TextField(
+        blank=True,
+        null=True
+    )
+
+    created_at = models.DateTimeField(
+        auto_now_add=True
+    )
+
+    journal_entry_id = models.UUIDField(
+        null=True,
+        blank=True
+    )
